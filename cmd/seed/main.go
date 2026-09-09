@@ -4,61 +4,42 @@ import (
 	"context"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/madman321000/sports-predictions/internal/config"
 	"github.com/madman321000/sports-predictions/internal/database"
+	"github.com/madman321000/sports-predictions/internal/postgres"
+	"github.com/madman321000/sports-predictions/internal/seed"
 )
 
-type League struct {
-	Name         string
-	Abbreviation string
-	Sport        string
-}
-
-func SeedLeagues(
-	ctx context.Context,
-	db *pgxpool.Pool,
-	leagues []League,
-) error {
-	for _, league := range leagues {
-		_, err := db.Exec(
-			ctx,
-			"INSERT INTO leagues (name, abbreviation, sport) VALUES ($1, $2, $3) DO UPDATE SET name = EXCLUDED.name, sport = EXCLUDED.sport, updated_at = NOW();",
-			league.Name,
-			league.Abbreviation,
-			league.Sport,
-		)
-		if err != nil {
-			log.Fatal(err)
-			return err
-		}
-	}
-	return nil
-}
-
-var leagues = []League{
-	{Name: "National Football League", Abbreviation: "NFL", Sport: "Football"},
-	{Name: "National Basketball Association", Abbreviation: "NBA", Sport: "Basketball"},
-}
-
 func main() {
-	ctx := context.Background()
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		log.Fatal("DATABASE_URL environment variable is not set")
+	if err := run(); err != nil {
+		log.Fatalf("failed to run: %v", err)
+		os.Exit(1)
 	}
+}
 
-	pool, err := database.NewPool(ctx, databaseURL)
+func run() error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	cfg, err := config.LoadConfig()
 	if err != nil {
-		log.Fatalf("failed to create database pool: %v", err)
+		return err
 	}
 
-	err = SeedLeagues(ctx, pool, leagues)
+	pool, err := database.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("failed to seed leagues: %v", err)
+		return err
 	}
-
 	defer pool.Close()
 
-	log.Println("connected to postgres")
+	repo := postgres.NewPostgresLeagueRepository(pool)
+	if err := seed.SeedLeagues(ctx, repo); err != nil {
+		return err
+	}
+
+	log.Printf("Seeded Leagues")
+	return nil
 }
