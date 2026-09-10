@@ -3,6 +3,7 @@ package espn
 import (
 	"context"
 	"net/http"
+	"os"
 	"testing"
 )
 
@@ -17,7 +18,7 @@ func TestFetchNBATeams(t *testing.T) {
 		}
 		respond(w, body)
 	})
-	teams, err := c.FetchNBATeams(context.Background())
+	teams, err := c.FetchTeams(context.Background(), "NBA")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,8 +32,36 @@ func TestDecodeTeamsRejectsInvalidData(t *testing.T) {
 		`not json`, `{}`, `{"sports":[{"leagues":[{"abbreviation":"NBA","teams":[{"team":{"id":"1"}}]}]}]}`,
 		`{"sports":[{"leagues":[{"abbreviation":"NBA","teams":[{"team":{"id":"1","displayName":"A","abbreviation":"A"}},{"team":{"id":"1","displayName":"B","abbreviation":"B"}}]}]}]}`,
 	} {
-		if _, err := decodeTeams([]byte(body)); err == nil {
+		if _, err := decodeTeams([]byte(body), "NBA"); err == nil {
 			t.Fatalf("accepted %s", body)
 		}
+	}
+}
+
+func TestFetchNFLTeams(t *testing.T) {
+	body, err := os.ReadFile("testdata/nfl_teams.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.URL.Path != "/apis/site/v2/sports/football/nfl/teams" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		respond(w, body)
+	})
+	teams, err := c.FetchTeams(context.Background(), "NFL")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(teams) != 2 || teams[0].Name != "Atlanta Falcons" || teams[1].ExternalID != "27" {
+		t.Fatalf("NFL teams: %+v", teams)
+	}
+	if _, err := c.FetchTeams(context.Background(), "MLB"); err == nil {
+		t.Fatal("accepted unsupported league")
+	}
+	if calls != 1 {
+		t.Fatal("unsupported league called provider")
 	}
 }

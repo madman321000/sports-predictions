@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -15,6 +16,7 @@ type Config struct {
 	ESPNRequestInterval time.Duration
 	ESPNHTTPTimeout     time.Duration
 	IngestTimeout       time.Duration
+	IngestWorkers       int
 }
 
 // LoadConfig reads .env from the working directory. Exported environment
@@ -53,6 +55,16 @@ func loadConfig(path string) (*Config, error) {
 	}
 	if cfg.ESPNRequestInterval < 5*time.Second || cfg.ESPNRequestInterval > time.Hour {
 		return nil, errors.New("ESPN_REQUEST_INTERVAL must be between 5s and 1h")
+	}
+	cfg.IngestWorkers = 1
+	if raw := value("INGEST_WORKERS"); raw != "" {
+		cfg.IngestWorkers, err = strconv.Atoi(raw)
+		if err != nil {
+			return nil, errors.New("INGEST_WORKERS must be an integer between 1 and 4")
+		}
+	}
+	if cfg.IngestWorkers < 1 || cfg.IngestWorkers > 4 {
+		return nil, errors.New("INGEST_WORKERS must be between 1 and 4")
 	}
 	return cfg, nil
 }

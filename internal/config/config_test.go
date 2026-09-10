@@ -10,7 +10,7 @@ import (
 
 func configFile(t *testing.T, contents string) string {
 	t.Helper()
-	for _, key := range []string{"DATABASE_URL", "TEST_DATABASE_URL", "ESPN_BASE_URL", "ESPN_REQUEST_INTERVAL", "ESPN_HTTP_TIMEOUT", "INGEST_TIMEOUT"} {
+	for _, key := range []string{"DATABASE_URL", "TEST_DATABASE_URL", "ESPN_BASE_URL", "ESPN_REQUEST_INTERVAL", "ESPN_HTTP_TIMEOUT", "INGEST_TIMEOUT", "INGEST_WORKERS"} {
 		t.Setenv(key, "")
 		if err := os.Unsetenv(key); err != nil {
 			t.Fatal(err)
@@ -70,7 +70,7 @@ func TestLoadConfigWithoutFile(t *testing.T) {
 }
 
 func TestLoadConfigRejectsInvalidDurations(t *testing.T) {
-	for _, setting := range []string{"ESPN_REQUEST_INTERVAL=1s", "ESPN_REQUEST_INTERVAL=2h", "ESPN_HTTP_TIMEOUT=0s", "INGEST_TIMEOUT=-1s", "INGEST_TIMEOUT=invalid"} {
+	for _, setting := range []string{"ESPN_REQUEST_INTERVAL=1s", "ESPN_REQUEST_INTERVAL=2h", "ESPN_HTTP_TIMEOUT=0s", "INGEST_TIMEOUT=-1s", "INGEST_TIMEOUT=invalid", "INGEST_WORKERS=0", "INGEST_WORKERS=5", "INGEST_WORKERS=bad"} {
 		t.Run(setting, func(t *testing.T) {
 			path := configFile(t, "DATABASE_URL=postgres://local/db\n"+setting+"\n")
 			if _, err := loadConfig(path); err == nil {

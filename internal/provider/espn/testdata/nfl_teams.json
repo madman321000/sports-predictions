@@ -1,0 +1,27 @@
+{
+  "sports": [
+    {
+      "leagues": [
+        {
+          "abbreviation": "NFL",
+          "teams": [
+            {
+              "team": {
+                "id": "1",
+                "displayName": "Atlanta Falcons",
+                "abbreviation": "ATL"
+              }
+            },
+            {
+              "team": {
+                "id": "27",
+                "displayName": "Tampa Bay Buccaneers",
+                "abbreviation": "TB"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

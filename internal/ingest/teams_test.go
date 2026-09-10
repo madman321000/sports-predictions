@@ -11,11 +11,13 @@ import (
 
 type source struct {
 	called bool
+	league string
 	err    error
 }
 
-func (s *source) FetchNBATeams(context.Context) ([]team.Team, error) {
+func (s *source) FetchTeams(_ context.Context, league string) ([]team.Team, error) {
 	s.called = true
+	s.league = league
 	return []team.Team{{ExternalID: "1", Name: "Hawks", Abbreviation: "ATL"}}, s.err
 }
 
@@ -44,7 +46,7 @@ func TestIngestNBATeams(t *testing.T) {
 			case "write":
 				db.writeErr = failure
 			}
-			count, err := ingest.IngestNBATeams(context.Background(), src, db)
+			count, err := ingest.IngestTeams(context.Background(), "NBA", src, db)
 			if stage == "success" {
 				if err != nil || count != 1 || len(db.saved) != 1 {
 					t.Fatalf("count=%d, error=%v", count, err)
@@ -61,5 +63,14 @@ func TestIngestNBATeams(t *testing.T) {
 				t.Fatal("wrote after failed prerequisite")
 			}
 		})
+	}
+}
+
+func TestIngestNFLTeams(t *testing.T) {
+	src := &source{}
+	db := &store{}
+	count, err := ingest.IngestTeams(context.Background(), "NFL", src, db)
+	if err != nil || count != 1 || len(db.saved) != 1 || src.league != "NFL" {
+		t.Fatalf("NFL count=%d error=%v", count, err)
 	}
 }
