@@ -21,7 +21,7 @@ func TestTeamRepositoryIntegration(t *testing.T) {
 	if err := seed.SeedLeagues(ctx, postgres.NewPostgresLeagueRepository(pool)); err != nil {
 		t.Fatal(err)
 	}
-	repo := postgres.NewTeamRepository(pool)
+	repo := postgres.NewPostgresTeamRepository(pool)
 	id, err := repo.LeagueID(ctx, "NBA")
 	if err != nil {
 		t.Fatal(err)

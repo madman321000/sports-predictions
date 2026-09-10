@@ -14,7 +14,7 @@ type source struct {
 	err    error
 }
 
-func (s *source) NBA(context.Context) ([]team.Team, error) {
+func (s *source) FetchNBATeams(context.Context) ([]team.Team, error) {
 	s.called = true
 	return []team.Team{{ExternalID: "1", Name: "Hawks", Abbreviation: "ATL"}}, s.err
 }
@@ -30,7 +30,7 @@ func (s *store) UpsertTeams(_ context.Context, _ int64, _ string, teams []team.T
 	return s.writeErr
 }
 
-func TestNBATeams(t *testing.T) {
+func TestIngestNBATeams(t *testing.T) {
 	failure := errors.New("failure")
 	for _, stage := range []string{"success", "lookup", "fetch", "write"} {
 		t.Run(stage, func(t *testing.T) {
@@ -44,7 +44,7 @@ func TestNBATeams(t *testing.T) {
 			case "write":
 				db.writeErr = failure
 			}
-			count, err := ingest.NBATeams(context.Background(), src, db)
+			count, err := ingest.IngestNBATeams(context.Background(), src, db)
 			if stage == "success" {
 				if err != nil || count != 1 || len(db.saved) != 1 {
 					t.Fatalf("count=%d, error=%v", count, err)

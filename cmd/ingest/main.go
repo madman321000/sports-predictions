@@ -53,7 +53,7 @@ func run() error {
 	}
 	defer pool.Close()
 
-	count, err := ingest.NBATeams(ctx, client, postgres.NewTeamRepository(pool))
+	count, err := ingest.IngestNBATeams(ctx, client, postgres.NewPostgresTeamRepository(pool))
 	if err != nil {
 		return err
 	}

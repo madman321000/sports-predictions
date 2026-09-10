@@ -4,6 +4,22 @@ A Go learning project for a sports prediction platform. It seeds NBA/NFL league
 reference data and imports NBA teams from ESPN into PostgreSQL. Game schedules,
 results, and predictions are not implemented yet.
 
+## Code organization
+
+- `cmd/`: configuration, dependency wiring, and command lifecycle.
+- `internal/seed/` and `internal/ingest/`: workflows and the interfaces they consume.
+- `internal/league/` and `internal/team/`: shared application types.
+- `internal/postgres/`: repositories and SQL (`PostgresLeagueRepository` and
+  `PostgresTeamRepository`).
+- `internal/provider/espn/`: one package split by responsibility: `client.go`
+  executes HTTP requests, `rate_limit.go` handles pacing and cancellation,
+  `retry.go` contains retry policy, `errors.go` defines provider errors, and
+  `teams.go` fetches and decodes NBA teams. Tests follow the same file grouping.
+
+The ingestion workflow calls `FetchNBATeams` on its source and saves the result
+through its store interface. The command wires these together through
+`IngestNBATeams`; ESPN response types stay inside the provider package.
+
 ## Prerequisites
 
 - Go 1.27.1 (the version declared in `go.mod`).

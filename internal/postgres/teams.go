@@ -9,17 +9,21 @@ import (
 	"github.com/madman321000/sports-predictions/internal/team"
 )
 
-type TeamRepository struct{ pool *pgxpool.Pool }
+type PostgresTeamRepository struct {
+	pool *pgxpool.Pool
+}
 
-func NewTeamRepository(pool *pgxpool.Pool) *TeamRepository { return &TeamRepository{pool: pool} }
+func NewPostgresTeamRepository(pool *pgxpool.Pool) *PostgresTeamRepository {
+	return &PostgresTeamRepository{pool: pool}
+}
 
-func (r *TeamRepository) LeagueID(ctx context.Context, abbreviation string) (int64, error) {
+func (r *PostgresTeamRepository) LeagueID(ctx context.Context, abbreviation string) (int64, error) {
 	var id int64
 	err := r.pool.QueryRow(ctx, "SELECT id FROM leagues WHERE abbreviation = $1", abbreviation).Scan(&id)
 	return id, err
 }
 
-func (r *TeamRepository) UpsertTeams(ctx context.Context, leagueID int64, provider string, teams []team.Team) error {
+func (r *PostgresTeamRepository) UpsertTeams(ctx context.Context, leagueID int64, provider string, teams []team.Team) error {
 	return pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		for _, t := range teams {
 			if t.ExternalID == "" || t.Name == "" || t.Abbreviation == "" || provider == "" {

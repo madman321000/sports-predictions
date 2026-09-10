@@ -8,20 +8,20 @@ import (
 )
 
 type TeamSource interface {
-	NBA(context.Context) ([]team.Team, error)
+	FetchNBATeams(context.Context) ([]team.Team, error)
 }
 type TeamStore interface {
 	LeagueID(context.Context, string) (int64, error)
 	UpsertTeams(context.Context, int64, string, []team.Team) error
 }
 
-// NBATeams checks prerequisites before using the network and persists one batch.
-func NBATeams(ctx context.Context, source TeamSource, store TeamStore) (int, error) {
+// IngestNBATeams checks prerequisites before using the network and persists one batch.
+func IngestNBATeams(ctx context.Context, source TeamSource, store TeamStore) (int, error) {
 	id, err := store.LeagueID(ctx, "NBA")
 	if err != nil {
 		return 0, fmt.Errorf("look up NBA league (run migrations and seed first): %w", err)
 	}
-	teams, err := source.NBA(ctx)
+	teams, err := source.FetchNBATeams(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("ingest NBA teams: %w", err)
 	}
