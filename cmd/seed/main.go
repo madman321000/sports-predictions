@@ -15,7 +15,7 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		log.Fatalf("failed to run: %v", err)
+		log.Printf("failed to run: %v", err)
 		os.Exit(1)
 	}
 }
