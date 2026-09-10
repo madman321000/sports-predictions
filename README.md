@@ -1,8 +1,8 @@
 # sports-predictions
 
-A Go learning project for a sports prediction platform. Currently, it can connect
-to PostgreSQL and seed NBA/NFL league reference data. The ingest command only
-checks database connectivity; fetching teams, games, and results is not implemented yet.
+A Go learning project for a sports prediction platform. It seeds NBA/NFL league
+reference data and imports NBA teams from ESPN into PostgreSQL. Game schedules,
+results, and predictions are not implemented yet.
 
 ## Prerequisites
 
@@ -48,19 +48,22 @@ export DATABASE_URL='postgres://sports:sports@localhost:5432/sportsdb?sslmode=di
 Set this in each new terminal session before running the application. The current
 code reads environment variables directly; it does not automatically load `.env`.
 
-### 4. Apply the league migration
+### 4. Apply the migrations
 
 On a fresh database, run:
 
 ```sh
 docker compose exec -T db psql -U sports -d sportsdb -v ON_ERROR_STOP=1 \
   < migrations/000001_create_leagues.up.sql
+docker compose exec -T db psql -U sports -d sportsdb -v ON_ERROR_STOP=1 \
+  < migrations/000002_create_teams.up.sql
 ```
 
 This uses the PostgreSQL client inside the container; no local `psql` installation
 is required. The project does not yet have a migration runner or migration history
-table. Apply this migration once per database. If `leagues` already exists from a
-previous run, skip this step; the migration is not designed to be rerun.
+table. Apply each migration once per database, in numeric order. If you already
+applied the league migration, run only `000002_create_teams.up.sql`. If both
+tables already exist, skip this step; these migrations are not designed to be rerun.
 
 ### 5. Seed NBA and NFL
 
@@ -80,14 +83,51 @@ docker compose exec -T db psql -U sports -d sportsdb \
 
 Expect two rows: NBA and NFL.
 
-### 6. Run the current ingest command
+### 6. Import NBA teams from ESPN
 
 ```sh
-go run ./cmd/ingest
+go run ./cmd/ingest -league NBA
 ```
 
-It currently logs `connected to postgres` and exits. It does not fetch external
-data or start a web server.
+The command checks that NBA has been seeded, fetches the team list in one request,
+and upserts the batch in a transaction. It logs the number imported and exits.
+Reruns update teams by `(provider, league_id, external_id)` without duplicates;
+missing teams are not deleted. Only NBA teams are supported in this first version.
+
+To use a longer delay between requests:
+
+```sh
+go run ./cmd/ingest -league NBA -request-interval 10s
+```
+
+### ESPN request limits
+
+These are conservative application defaults, **not a published ESPN allowance or
+a guarantee against blocking**. ESPN's [terms page](https://support.espn.com/hc/en-us/articles/360035445091-Terms-of-Use)
+links to the applicable [terms of use](https://disneytermsofuse.com/). Endpoint
+availability does not establish permission for every use of its data.
+
+- One in-flight request per shared client, at least five seconds apart, including
+  retries. The interval can be increased up to one hour, but cannot be set below
+  five seconds.
+- At most three attempts total, and only HTTP 502, 503, and 504 are retried.
+  Backoff doubles between retries and respects longer `Retry-After` values
+  expressed as seconds or an HTTP date. Invalid or more-than-one-minute server
+  delays stop the client for its lifetime instead of retrying early.
+- HTTP 403 or 429 stops the client for the rest of its lifetime. The error includes
+  `Retry-After` if provided. Do not repeatedly restart the command after a block;
+  wait at least the requested delay and resolve access restrictions before retrying.
+- Other HTTP errors, network errors, and invalid response data fail without retries.
+  Redirects are not followed. Requests have a 20-second timeout; the command has
+  a five-minute deadline and supports cancellation with Ctrl+C.
+- There is no automatic polling or per-team fan-out. Team reference data changes
+  infrequently: run manually when needed, rather than on a frequent schedule.
+- The limiter is per client/process and resets on restart. Run only one importer
+  at a time. Multiple machines or processes would need a shared limiter before
+  adding scheduled jobs or concurrency across processes.
+
+Tests use a local HTTP server and a small synthetic ESPN-shaped fixture. CI never
+calls the live ESPN endpoint.
 
 ## Stop and restart
 
@@ -133,11 +173,13 @@ go test -race -count=1 -v ./...
 Start the development database with `docker compose up -d db` if needed.
 Use a local development or dedicated test database. The test user needs permission
 to create schemas. Each integration test creates a uniquely named schema, applies
-`migrations/000001_create_leagues.up.sql` there, and drops that schema on cleanup,
+the required checked-in migrations there, and drops that schema on cleanup,
 even when assertions fail. Existing application tables are not changed, and no
 manual migration is required for these tests. A configured but unreachable database
 fails the tests rather than skipping them.
 
+Additional tests cover ESPN response validation, request pacing, retry limits,
+access restrictions, cancellation, ingestion failures, and atomic team upserts.
 Coverage includes seed records and context forwarding, wrapped write failures and
 stopping on error, repeated seeding without duplicates, updates preserving row
 identity and creation time, timestamp refresh, and wrapped PostgreSQL errors.
