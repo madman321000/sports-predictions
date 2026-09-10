@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/madman321000/sports-predictions/internal/config"
 	"github.com/madman321000/sports-predictions/internal/league"
 	"github.com/madman321000/sports-predictions/internal/postgres"
 	"github.com/madman321000/sports-predictions/internal/seed"
@@ -21,7 +22,10 @@ import (
 // Each test owns a schema. Never migrate or delete tables in the caller's schema.
 func testPool(t *testing.T) (*pgxpool.Pool, context.Context) {
 	t.Helper()
-	url := os.Getenv("TEST_DATABASE_URL")
+	url, err := config.LoadTestDatabaseURL(filepath.Join("..", "..", ".env"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if url == "" {
 		t.Skip("set TEST_DATABASE_URL to run PostgreSQL integration tests")
 	}
