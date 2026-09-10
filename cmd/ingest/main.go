@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/madman321000/sports-predictions/internal/config"
 	"github.com/madman321000/sports-predictions/internal/database"
@@ -25,13 +24,17 @@ func main() {
 }
 
 func run() error {
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return err
+	}
 	league := flag.String("league", "NBA", "league to import (NBA supported)")
-	interval := flag.Duration("request-interval", espn.MinInterval, "minimum ESPN request spacing (at least 5s)")
+	interval := flag.Duration("request-interval", cfg.ESPNRequestInterval, "minimum ESPN request spacing (at least 5s)")
 	flag.Parse()
 	if *league != "NBA" || flag.NArg() != 0 {
 		return fmt.Errorf("only -league NBA is supported; no positional arguments expected")
 	}
-	client, err := espn.NewClient(*interval)
+	client, err := espn.NewClient(espn.Options{BaseURL: cfg.ESPNBaseURL, RequestInterval: *interval, HTTPTimeout: cfg.ESPNHTTPTimeout})
 	if err != nil {
 		return err
 	}
@@ -39,13 +42,8 @@ func run() error {
 		context.Background(), os.Interrupt, syscall.SIGTERM,
 	)
 	defer stop()
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, cfg.IngestTimeout)
 	defer cancel()
-
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		return err
-	}
 
 	pool, err := database.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {

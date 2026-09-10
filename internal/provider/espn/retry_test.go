@@ -94,7 +94,7 @@ func TestRetryDelay(t *testing.T) {
 			t.Errorf("%q: got %s, %v", tc.raw, got, err)
 		}
 	}
-	if _, err := NewClient(time.Second); err == nil {
+	if _, err := NewClient(Options{BaseURL: "https://example.com", RequestInterval: time.Second, HTTPTimeout: time.Second}); err == nil {
 		t.Fatal("accepted unsafe interval")
 	}
 }

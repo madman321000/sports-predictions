@@ -22,11 +22,10 @@ func testClient(t *testing.T, h http.HandlerFunc) *Client {
 	t.Helper()
 	s := httptest.NewServer(h)
 	t.Cleanup(s.Close)
-	c, err := NewClient(MinInterval)
+	c, err := NewClient(Options{BaseURL: s.URL, RequestInterval: MinInterval, HTTPTimeout: time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.baseURL = s.URL
 	c.interval = time.Millisecond
 	return c
 }
@@ -43,5 +42,16 @@ func TestNBARejectsRedirect(t *testing.T) {
 	}
 	if calls.Load() != 1 {
 		t.Fatal("followed unpaced redirect")
+	}
+}
+
+func TestNewClientValidatesOptions(t *testing.T) {
+	for _, base := range []string{"", ":bad", "file:///tmp/endpoint", "https://user:secret@example.com", "https://example.com/path", "https://example.com?key=secret", "https://example.com#fragment"} {
+		if _, err := NewClient(Options{BaseURL: base, RequestInterval: MinInterval, HTTPTimeout: time.Second}); err == nil {
+			t.Errorf("accepted invalid origin %q", base)
+		}
+	}
+	if _, err := NewClient(Options{BaseURL: "https://example.com", RequestInterval: MinInterval}); err == nil {
+		t.Fatal("accepted missing timeout")
 	}
 }

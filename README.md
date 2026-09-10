@@ -44,34 +44,40 @@ go mod download
 If you already have a checkout, use that directory instead. To try an unmerged
 PR, check out its branch before running the commands below.
 
-### 2. Start PostgreSQL
+### 2. Configure your environment
 
 ```sh
-docker compose up -d db
-docker compose exec -T db pg_isready -U sports -d sportsdb
+cp .env.example .env
 ```
 
-Wait until the second command reports `accepting connections`. If the database
-is still starting, rerun that command. Inspect startup problems with
-`docker compose logs db`.
+Edit `.env` for your local setup. It holds PostgreSQL image, credentials, database
+name and host port; application and test connection URLs; ESPN's base URL; request
+spacing and timeouts. Keep the connection URLs in sync when changing the database
+settings. URLs are explicit: do not use variable interpolation in the Go settings.
 
-### 3. Configure the Go commands
+`.env` and local `.env.*` files are ignored by Git. Commit only the sanitized
+`.env.example` template. Run commands from the repository root so both Go and
+Docker Compose find `.env`. Exported environment variables override file values;
+a missing file is allowed when all required settings are supplied externally.
+The seed command requires `DATABASE_URL`; ingestion also requires `ESPN_BASE_URL`.
+
+### 3. Start PostgreSQL
 
 ```sh
-export DATABASE_URL='postgres://sports:sports@localhost:5432/sportsdb?sslmode=disable'
+docker compose up -d --wait --wait-timeout 60 db
 ```
 
-Set this in each new terminal session before running the application. The current
-code reads environment variables directly; it does not automatically load `.env`.
+Compose waits for the database health check before returning. Inspect startup
+problems with `docker compose logs db`.
 
 ### 4. Apply the migrations
 
 On a fresh database, run:
 
 ```sh
-docker compose exec -T db psql -U sports -d sportsdb -v ON_ERROR_STOP=1 \
+docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
   < migrations/000001_create_leagues.up.sql
-docker compose exec -T db psql -U sports -d sportsdb -v ON_ERROR_STOP=1 \
+docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
   < migrations/000002_create_teams.up.sql
 ```
 
@@ -93,8 +99,9 @@ are updated by abbreviation instead of duplicated.
 Inspect the records:
 
 ```sh
-docker compose exec -T db psql -U sports -d sportsdb \
-  -c 'SELECT id, name, abbreviation, sport FROM leagues ORDER BY abbreviation;'
+docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+SELECT id, name, abbreviation, sport FROM leagues ORDER BY abbreviation;
+SQL
 ```
 
 Expect two rows: NBA and NFL.
@@ -110,11 +117,9 @@ and upserts the batch in a transaction. It logs the number imported and exits.
 Reruns update teams by `(provider, league_id, external_id)` without duplicates;
 missing teams are not deleted. Only NBA teams are supported in this first version.
 
-To use a longer delay between requests:
-
-```sh
-go run ./cmd/ingest -league NBA -request-interval 10s
-```
+Set `ESPN_REQUEST_INTERVAL=10s` in `.env` for a longer delay. The optional
+`-request-interval` flag overrides that setting for a single run. The five-second
+minimum remains enforced regardless of where the value comes from.
 
 ### ESPN request limits
 
@@ -134,8 +139,8 @@ availability does not establish permission for every use of its data.
   `Retry-After` if provided. Do not repeatedly restart the command after a block;
   wait at least the requested delay and resolve access restrictions before retrying.
 - Other HTTP errors, network errors, and invalid response data fail without retries.
-  Redirects are not followed. Requests have a 20-second timeout; the command has
-  a five-minute deadline and supports cancellation with Ctrl+C.
+  Redirects are not followed. Requests default to a 20-second timeout (`ESPN_HTTP_TIMEOUT`); the command
+  defaults to a five-minute deadline (`INGEST_TIMEOUT`) and supports cancellation with Ctrl+C.
 - There is no automatic polling or per-team fan-out. Team reference data changes
   infrequently: run manually when needed, rather than on a frequent schedule.
 - The limiter is per client/process and resets on restart. Run only one importer
@@ -157,42 +162,39 @@ migration reapplied.
 
 ## Troubleshooting
 
-- **`DATABASE_URL environment variable is not set`:** rerun the export above in
-  the same terminal as the Go command.
+- **Missing configuration:** copy `.env.example` to `.env`, check the required
+  settings, and run from the repository root.
 - **Connection refused:** check `docker compose ps` and database readiness.
 - **Port 5432 is already allocated:** stop the conflicting local database, or
-  change the host port in Compose and update `DATABASE_URL` and
-  `TEST_DATABASE_URL` to match.
+  change `POSTGRES_PORT` in `.env` and update `DATABASE_URL` and
+  `TEST_DATABASE_URL` there to match.
 - **`relation "leagues" does not exist`:** apply the league migration to the
   database your command connects to.
 - **Password authentication failed:** confirm the URL matches the database's
   credentials. An existing named volume retains its original database setup;
-  editing Compose credentials does not change an existing database password.
+  editing `.env` credentials does not change an existing database password.
 
 ## Tests
 
-Run unit tests and static checks:
+With `.env` configured and PostgreSQL running:
 
 ```sh
-go test ./...
+go test -race -count=1 -v ./...
 go vet ./...
 ```
 
-PostgreSQL integration tests skip when `TEST_DATABASE_URL` is unset. To run
-all tests, including the real SQL upsert checks:
+Integration tests read `TEST_DATABASE_URL` from the repository-root `.env`, with
+exported values taking precedence. To run only tests that need no database:
 
 ```sh
-export TEST_DATABASE_URL='postgres://sports:sports@localhost:5432/sportsdb?sslmode=disable'
-go test -race -count=1 -v ./...
+TEST_DATABASE_URL= go test ./...
 ```
 
-Start the development database with `docker compose up -d db` if needed.
-Use a local development or dedicated test database. The test user needs permission
-to create schemas. Each integration test creates a uniquely named schema, applies
-the required checked-in migrations there, and drops that schema on cleanup,
-even when assertions fail. Existing application tables are not changed, and no
-manual migration is required for these tests. A configured but unreachable database
-fails the tests rather than skipping them.
+An empty or absent `TEST_DATABASE_URL` skips integration tests. A configured but
+unreachable database fails them. The test user needs permission to create schemas.
+Each integration test creates its own schema, applies the required migrations,
+and drops that schema on cleanup. Existing application tables are not changed,
+and no manual migration is required for tests.
 
 Additional tests cover ESPN response validation, request pacing, retry limits,
 access restrictions, cancellation, ingestion failures, and atomic team upserts.
@@ -207,11 +209,12 @@ from the Actions tab. It has two checks:
 
 - **Lint:** verifies `gofmt` formatting and runs golangci-lint v2.13.2 with
   `errcheck`, `govet`, `ineffassign`, `staticcheck`, and `unused`.
-- **Tests and coverage:** starts a fresh PostgreSQL 16 service and runs all tests,
+- **Tests and coverage:** starts PostgreSQL using the Compose configuration and `.env.example` and runs all tests,
   including integration tests, with race detection and coverage across all packages.
 
 Both jobs use the Go version in `go.mod`. No repository secrets are needed;
-PostgreSQL credentials belong only to the temporary CI database.
+CI copies `.env.example` to `.env`, starts a temporary Compose database, and
+removes its volume afterward. Local credentials are never uploaded.
 
 Open a workflow run in the Actions tab to see the coverage summary. Download its
 `coverage` artifact for the raw profile, function summary, and browsable HTML
@@ -226,7 +229,8 @@ golangci-lint run
 ```
 
 Ensure your Go binary directory (normally `$(go env GOPATH)/bin`) is on `PATH`.
-To generate coverage locally, set `TEST_DATABASE_URL` as described above, then:
+To generate coverage locally, configure `TEST_DATABASE_URL` in `.env` and start
+PostgreSQL as described above, then:
 
 ```sh
 go test -race -count=1 -timeout=5m -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
