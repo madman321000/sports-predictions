@@ -31,3 +31,15 @@ func TestParseOptions(t *testing.T) {
 		}
 	}
 }
+
+func TestForceRefreshOptions(t *testing.T) {
+	cfg := &config.Config{ESPNRequestInterval: 5 * time.Second, IngestWorkers: 1}
+	options, err := parseOptions([]string{"-resource", "teams", "-league", "NFL", "-force"}, cfg, io.Discard)
+	if err != nil || !options.force {
+		t.Fatalf("force teams: %+v %v", options, err)
+	}
+	options, err = parseOptions([]string{"-resource", "games", "-force", "-from", "2026-01-01", "-to", "2026-01-01"}, cfg, io.Discard)
+	if err != nil || !options.games.Force {
+		t.Fatalf("force games: %+v %v", options, err)
+	}
+}

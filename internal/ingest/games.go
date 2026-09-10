@@ -15,16 +15,19 @@ type GameSource interface {
 }
 type GameStore interface {
 	LeagueID(context.Context, string) (int64, error)
-	UpsertGames(context.Context, int64, string, []game.Game) error
+	GameDateComplete(context.Context, int64, string, time.Time) (bool, error)
+	SaveGameImport(context.Context, int64, string, time.Time, []game.Game) error
 }
 
 type GameOptions struct {
 	League   string
 	From, To time.Time
 	Workers  int
+	Force    bool
 }
 type GameResult struct {
 	DatesProcessed int
+	DatesSkipped   int
 	GamesProcessed int
 }
 
@@ -76,11 +79,23 @@ func IngestGames(ctx context.Context, source GameSource, store GameStore, option
 				if err := workCtx.Err(); err != nil {
 					return err
 				}
+				if !options.Force {
+					complete, err := store.GameDateComplete(workCtx, id, "espn", date)
+					if err != nil {
+						return fmt.Errorf("check stored date %s: %w", date.Format(time.DateOnly), err)
+					}
+					if complete {
+						mu.Lock()
+						result.DatesSkipped++
+						mu.Unlock()
+						continue
+					}
+				}
 				games, err := source.FetchGames(workCtx, options.League, date)
 				if err != nil {
 					return fmt.Errorf("fetch %s %s: %w", options.League, date.Format(time.DateOnly), err)
 				}
-				if err := store.UpsertGames(workCtx, id, "espn", games); err != nil {
+				if err := store.SaveGameImport(workCtx, id, "espn", date, games); err != nil {
 					return fmt.Errorf("save %s %s: %w", options.League, date.Format(time.DateOnly), err)
 				}
 				mu.Lock()

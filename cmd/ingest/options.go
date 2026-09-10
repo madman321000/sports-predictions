@@ -13,6 +13,7 @@ import (
 
 type commandOptions struct {
 	resource, league string
+	force            bool
 	interval         time.Duration
 	games            ingest.GameOptions
 }
@@ -24,6 +25,7 @@ func parseOptions(args []string, cfg *config.Config, output io.Writer) (commandO
 	flags.StringVar(&options.resource, "resource", "teams", "resource to import: teams or games")
 	flags.StringVar(&options.league, "league", "NBA", "league to import: NBA or NFL")
 	flags.DurationVar(&options.interval, "request-interval", cfg.ESPNRequestInterval, "minimum ESPN request spacing (at least 5s)")
+	flags.BoolVar(&options.force, "force", false, "refresh even when the database has a complete import")
 	from := flags.String("from", "", "first ESPN calendar date, YYYY-MM-DD (games only)")
 	to := flags.String("to", "", "last ESPN calendar date, inclusive (games only)")
 	workers := flags.Int("workers", cfg.IngestWorkers, "date workers, 1-4; HTTP requests remain paced")
@@ -56,7 +58,7 @@ func parseOptions(args []string, cfg *config.Config, output io.Writer) (commandO
 		if err != nil {
 			return options, fmt.Errorf("to must be YYYY-MM-DD")
 		}
-		options.games = ingest.GameOptions{League: options.league, From: start, To: end, Workers: *workers}
+		options.games = ingest.GameOptions{League: options.league, From: start, To: end, Workers: *workers, Force: options.force}
 		if err := options.games.Validate(); err != nil {
 			return options, err
 		}

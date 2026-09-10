@@ -53,14 +53,18 @@ func run() error {
 	defer pool.Close()
 
 	if options.resource == "teams" {
-		count, err := ingest.IngestTeams(ctx, options.league, client, postgres.NewPostgresTeamRepository(pool))
+		result, err := ingest.IngestTeams(ctx, options.league, client, postgres.NewPostgresTeamRepository(pool), options.force)
 		if err != nil {
 			return err
 		}
-		log.Printf("imported %d %s teams from ESPN", count, options.league)
+		if result.Skipped {
+			log.Printf("skipped %s teams: complete import already stored", options.league)
+		} else {
+			log.Printf("imported %d %s teams from ESPN", result.TeamsProcessed, options.league)
+		}
 		return nil
 	}
 	result, err := ingest.IngestGames(ctx, client, postgres.NewPostgresGameRepository(pool), options.games)
-	log.Printf("processed %d %s game records across %d committed dates", result.GamesProcessed, options.league, result.DatesProcessed)
+	log.Printf("processed %d %s game records across %d committed dates; skipped %d complete dates", result.GamesProcessed, options.league, result.DatesProcessed, result.DatesSkipped)
 	return err
 }

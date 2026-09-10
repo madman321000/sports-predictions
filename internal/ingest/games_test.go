@@ -21,11 +21,12 @@ func (s gameSource) FetchGames(ctx context.Context, l string, d time.Time) ([]ga
 }
 
 type gameStore struct {
-	save func(context.Context, []game.Game) error
+	save     func(context.Context, []game.Game) error
+	complete func(time.Time) (bool, error)
 }
 
 func (s gameStore) LeagueID(context.Context, string) (int64, error) { return 1, nil }
-func (s gameStore) UpsertGames(ctx context.Context, _ int64, _ string, g []game.Game) error {
+func (s gameStore) SaveGameImport(ctx context.Context, _ int64, _ string, _ time.Time, g []game.Game) error {
 	return s.save(ctx, g)
 }
 func gameOptions(workers int) ingest.GameOptions {
@@ -130,5 +131,60 @@ func TestIngestGamesCancelsOtherWorkers(t *testing.T) {
 	result, err := ingest.IngestGames(ctx, src, db, gameOptions(2))
 	if !errors.Is(err, failure) || result.DatesProcessed != 0 {
 		t.Fatalf("result=%+v error=%v", result, err)
+	}
+}
+
+func (s gameStore) GameDateComplete(_ context.Context, _ int64, _ string, date time.Time) (bool, error) {
+	if s.complete == nil {
+		return false, nil
+	}
+	return s.complete(date)
+}
+
+func TestGamesSkipCachedDatesAndForceRefresh(t *testing.T) {
+	var calls atomic.Int32
+	src := gameSource{fetch: func(context.Context, string, time.Time) ([]game.Game, error) {
+		calls.Add(1)
+		return []game.Game{{ExternalID: "1"}}, nil
+	}}
+	db := gameStore{save: func(context.Context, []game.Game) error { return nil }, complete: func(time.Time) (bool, error) { return true, nil }}
+	options := gameOptions(4)
+	result, err := ingest.IngestGames(context.Background(), src, db, options)
+	if err != nil || calls.Load() != 0 || result.DatesSkipped != 4 || result.DatesProcessed != 0 {
+		t.Fatalf("cached result=%+v calls=%d error=%v", result, calls.Load(), err)
+	}
+	options.Force = true
+	result, err = ingest.IngestGames(context.Background(), src, db, options)
+	if err != nil || calls.Load() != 4 || result.DatesSkipped != 0 || result.DatesProcessed != 4 {
+		t.Fatalf("force result=%+v calls=%d error=%v", result, calls.Load(), err)
+	}
+}
+
+func TestGamesOnlyFetchIncompleteDates(t *testing.T) {
+	var calls atomic.Int32
+	src := gameSource{fetch: func(_ context.Context, _ string, date time.Time) ([]game.Game, error) {
+		calls.Add(1)
+		if date.Day()%2 == 0 {
+			t.Error("called provider for complete date")
+		}
+		return nil, nil
+	}}
+	db := gameStore{save: func(context.Context, []game.Game) error { return nil }, complete: func(date time.Time) (bool, error) { return date.Day()%2 == 0, nil }}
+	result, err := ingest.IngestGames(context.Background(), src, db, gameOptions(2))
+	if err != nil || calls.Load() != 2 || result.DatesSkipped != 2 || result.DatesProcessed != 2 {
+		t.Fatalf("result=%+v error=%v calls=%d", result, err, calls.Load())
+	}
+}
+
+func TestGamesCacheErrorDoesNotCallProvider(t *testing.T) {
+	failure := errors.New("cache read failed")
+	src := gameSource{fetch: func(context.Context, string, time.Time) ([]game.Game, error) {
+		t.Error("provider called after cache error")
+		return nil, nil
+	}}
+	db := gameStore{complete: func(time.Time) (bool, error) { return false, failure }}
+	_, err := ingest.IngestGames(context.Background(), src, db, gameOptions(1))
+	if !errors.Is(err, failure) {
+		t.Fatalf("error=%v", err)
 	}
 }

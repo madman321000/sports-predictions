@@ -83,12 +83,15 @@ docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v O
   < migrations/000002_create_teams.up.sql
 docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
   < migrations/000003_create_games.up.sql
+docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
+  < migrations/000004_create_import_snapshots.up.sql
 ```
 
 This uses the PostgreSQL client inside the container; no local `psql` installation
 is required. The project does not yet have a migration runner or migration history
 table. Apply each migration once per database, in numeric order. If you already
-applied migrations 000001 and 000002, run only `000003_create_games.up.sql`.
+applied migrations 000001 through 000003, run only
+`000004_create_import_snapshots.up.sql`.
 Skip migrations already applied; these migrations are not designed to be rerun.
 
 ### 5. Seed NBA and NFL
@@ -117,9 +120,10 @@ go run ./cmd/ingest -resource teams -league NBA
 go run ./cmd/ingest -resource teams -league NFL
 ```
 
-Each command checks that its league has been seeded, fetches the entire team list
-in one request, and upserts it in a transaction. Teams are identified by provider,
-league, and external ID, so overlapping NBA/NFL IDs do not collide. Reruns update
+Each command checks that its league has been seeded and whether a complete team
+import is already stored. It skips ESPN when that import is complete; otherwise
+it fetches the entire team list in one request and saves it in a transaction. Teams are identified by provider,
+league, and external ID, so overlapping NBA/NFL IDs do not collide. Explicit refreshes update
 existing records; missing teams are not deleted. `-resource teams` remains the
 default for compatibility with the previous command.
 
@@ -148,6 +152,40 @@ to import teams; no placeholder teams are created. Older fetched snapshots canno
 overwrite newer ones when workers finish out of order. Missing games are not
 deleted, so refresh the relevant dates to collect later results or schedule changes.
 
+### Avoid repeat requests
+
+Normal imports check PostgreSQL before contacting ESPN:
+
+- **Teams:** skip the request when a successful full team import exists and every
+  team in that response is still in the database. This applies to both NBA and NFL.
+- **Games:** skip a date when a successful full scoreboard import exists and every
+  game in that response is stored as final with both scores. Zero is a valid score.
+- Dates with scheduled, live, postponed, canceled, or missing games still refresh.
+  Empty dates also refresh so a previously empty future schedule is not cached forever.
+
+ESPN returns a whole scoreboard date, so a mixed date with unfinished games still
+needs one request even when some of its games are already final. Completion is
+tracked using the requested ESPN date, not the games' UTC start dates.
+
+Migration 000004 adds persistent import records, saved in the same transaction as
+their teams or games. Existing rows from before this change require one verification
+import to establish a full response; partial rows alone cannot prove completeness.
+A failed import does not create a completion record. Deleted records invalidate
+completion and cause the next run to fetch again.
+
+Use `-force` to refresh saved teams, discover schedule changes, or collect corrected
+final scores:
+
+```sh
+go run ./cmd/ingest -resource teams -league NFL -force
+go run ./cmd/ingest -resource games -league NBA -from 2026-01-01 -to 2026-01-07 -force
+```
+
+Completed imports do not expire automatically. The CLI reports skipped teams or
+skipped dates separately from newly processed records. Rate limits still apply to
+forced requests. Concurrent processes are not deduplicated; continue to run only
+one importer process at a time.
+
 ### Bounded concurrency
 
 The default is one date worker. To overlap date processing and database writes:
@@ -162,7 +200,7 @@ serialized and at least five seconds apart, including retries. More workers do
 not increase ESPN request throughput or bypass access restrictions.
 
 On the first error, pending workers are canceled. Dates already committed remain;
-the command reports committed dates and processed game records even on failure.
+the command reports committed dates, skipped dates, and processed game records even on failure.
 Counts are records processed, not unique inserts (a rescheduled game can appear on
 multiple dates). Rerun the same bounded range to recover. There is no persistent
 checkpoint or cross-process limiter yet; run only one importer process at a time.
@@ -249,7 +287,8 @@ and no manual migration is required for tests.
 
 Additional tests cover ESPN response validation, request pacing, retry limits,
 access restrictions, cancellation, ingestion failures, atomic team/game upserts,
-NBA/NFL mapping, worker bounds, partial progress, and stale-response protection.
+NBA/NFL mapping, worker bounds, partial progress, stale-response protection,
+database-first request skipping, forced refreshes, and atomic import records.
 Coverage includes seed records and context forwarding, wrapped write failures and
 stopping on error, repeated seeding without duplicates, updates preserving row
 identity and creation time, timestamp refresh, and wrapped PostgreSQL errors.
