@@ -141,3 +141,37 @@ fails the tests rather than skipping them.
 Coverage includes seed records and context forwarding, wrapped write failures and
 stopping on error, repeated seeding without duplicates, updates preserving row
 identity and creation time, timestamp refresh, and wrapped PostgreSQL errors.
+
+## GitHub Actions
+
+The `Go CI` workflow runs on pull requests, pushes to `main`, and manual runs
+from the Actions tab. It has two checks:
+
+- **Lint:** verifies `gofmt` formatting and runs golangci-lint v2.13.2 with
+  `errcheck`, `govet`, `ineffassign`, `staticcheck`, and `unused`.
+- **Tests and coverage:** starts a fresh PostgreSQL 16 service and runs all tests,
+  including integration tests, with race detection and coverage across all packages.
+
+Both jobs use the Go version in `go.mod`. No repository secrets are needed;
+PostgreSQL credentials belong only to the temporary CI database.
+
+Open a workflow run in the Actions tab to see the coverage summary. Download its
+`coverage` artifact for the raw profile, function summary, and browsable HTML
+report. Artifacts are retained for 14 days. Coverage is reported without enforcing
+a minimum percentage while the learning project's test suite grows.
+
+To run the same linter locally:
+
+```sh
+go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
+golangci-lint run
+```
+
+Ensure your Go binary directory (normally `$(go env GOPATH)/bin`) is on `PATH`.
+To generate coverage locally, set `TEST_DATABASE_URL` as described above, then:
+
+```sh
+go test -race -count=1 -timeout=5m -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
+go tool cover -func=coverage.out
+go tool cover -html=coverage.out -o coverage.html
+```
