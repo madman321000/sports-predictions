@@ -145,6 +145,15 @@ ESPN scoreboard calendar dates, not a filter on UTC game start times. Start time
 are stored in UTC. NFL season year, season type, and week are preserved when
 provided; the season year is not inferred from the game's calendar year.
 
+Preseason events (`season.type=1`) and All-Star exhibitions
+(`competition.type.abbreviation=ALLSTAR`) are explicitly excluded and logged.
+ESPN can mark All-Star events as regular season, so both fields are checked.
+Unknown teams in other games still fail the date rather than being silently
+skipped or added as fake league teams. Mixed dates save only included games in
+the date import record. Exhibition-only dates record an empty successful import;
+like other empty dates, they are fetched again on a later run and do not create
+missing-game findings in the quality report. No new migration is required.
+
 Scheduled games have null scores, while a played score of zero is preserved.
 Imports handle in-progress, final, postponed, canceled, suspended, and delayed
 games. Unknown statuses and malformed records fail that date rather than silently

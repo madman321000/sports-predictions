@@ -15,16 +15,19 @@ const maxBody = 2 << 20
 // Client serializes requests and retries through one gate. Share one client per
 // process; separate processes do not share this limiter.
 type Client struct {
-	http     *http.Client
-	baseURL  string
-	interval time.Duration
-	gate     chan struct{}
-	next     time.Time
-	blocked  error
+	http           *http.Client
+	baseURL        string
+	interval       time.Duration
+	gate           chan struct{}
+	next           time.Time
+	blocked        error
+	onSkippedEvent func(string, string)
 }
 
 // Options are supplied by command configuration, not read from the environment.
 type Options struct {
+	// OnSkippedEvent reports an excluded event ID and reason; calls may be concurrent.
+	OnSkippedEvent  func(string, string)
 	BaseURL         string
 	RequestInterval time.Duration
 	HTTPTimeout     time.Duration
@@ -42,10 +45,11 @@ func NewClient(options Options) (*Client, error) {
 		return nil, fmt.Errorf("ESPN_BASE_URL must be an HTTP(S) origin without credentials, a path, query, or fragment")
 	}
 	return &Client{
-		http:     &http.Client{Timeout: options.HTTPTimeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
-		baseURL:  strings.TrimRight(options.BaseURL, "/"),
-		interval: options.RequestInterval,
-		gate:     make(chan struct{}, 1),
+		onSkippedEvent: options.OnSkippedEvent,
+		http:           &http.Client{Timeout: options.HTTPTimeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
+		baseURL:        strings.TrimRight(options.BaseURL, "/"),
+		interval:       options.RequestInterval,
+		gate:           make(chan struct{}, 1),
 	}, nil
 }
 
