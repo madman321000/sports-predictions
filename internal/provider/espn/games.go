@@ -20,7 +20,7 @@ func (c *Client) FetchGames(ctx context.Context, league string, date time.Time) 
 	if err != nil {
 		return nil, err
 	}
-	return decodeGames(response.body, league, response.observedAt)
+	return decodeGamesWithSkips(response.body, league, response.observedAt, c.onSkippedEvent)
 }
 
 type scoreboard struct {
@@ -41,6 +41,9 @@ type event struct {
 	Competitions []competition `json:"competitions"`
 }
 type competition struct {
+	Type struct {
+		Abbreviation string `json:"abbreviation"`
+	} `json:"type"`
 	Date   string `json:"date"`
 	Status struct {
 		Type struct {
@@ -59,6 +62,10 @@ type competition struct {
 }
 
 func decodeGames(body []byte, league string, observedAt time.Time) ([]game.Game, error) {
+	return decodeGamesWithSkips(body, league, observedAt, nil)
+}
+
+func decodeGamesWithSkips(body []byte, league string, observedAt time.Time, onSkip func(string, string)) ([]game.Game, error) {
 	var response scoreboard
 	if err := json.Unmarshal(body, &response); err != nil {
 		return nil, fmt.Errorf("decode scoreboard: %w", err)
@@ -87,6 +94,22 @@ func decodeGames(body []byte, league string, observedAt time.Time) ([]game.Game,
 		}
 		seen[e.ID] = true
 		c := e.Competitions[0]
+		// ESPN labels All-Star events as regular season, so season.type alone
+		// cannot distinguish exhibitions from league games.
+		reason := ""
+		if e.Season.Type == 1 {
+			reason = "preseason"
+		}
+		if c.Type.Abbreviation == "ALLSTAR" {
+			reason = "All-Star exhibition"
+		}
+		if reason != "" {
+			if onSkip != nil {
+				onSkip(e.ID, reason)
+			}
+			continue
+		}
+
 		start, err := time.Parse(time.RFC3339, c.Date)
 		if err != nil {
 			start, err = time.Parse("2006-01-02T15:04Z07:00", c.Date)

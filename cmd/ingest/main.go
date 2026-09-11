@@ -36,7 +36,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	client, err := espn.NewClient(espn.Options{BaseURL: cfg.ESPNBaseURL, RequestInterval: options.interval, HTTPTimeout: cfg.ESPNHTTPTimeout})
+	client, err := espn.NewClient(espn.Options{BaseURL: cfg.ESPNBaseURL, RequestInterval: options.interval, HTTPTimeout: cfg.ESPNHTTPTimeout, OnSkippedEvent: func(id, reason string) { log.Printf("excluded ESPN game %s: %s", id, reason) }})
 	if err != nil {
 		return err
 	}

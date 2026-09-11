@@ -127,3 +127,53 @@ func TestTeamsAndGamesSharePacing(t *testing.T) {
 		t.Fatal("endpoints bypassed shared pacing")
 	}
 }
+
+func TestExhibitionFiltering(t *testing.T) {
+	for _, league := range []string{"NBA", "NFL"} {
+		t.Run(league, func(t *testing.T) {
+			var original scoreboard
+			if err := json.Unmarshal(gameFixture(t, league), &original); err != nil {
+				t.Fatal(err)
+			}
+			var regular []json.RawMessage
+			if err := json.Unmarshal(original.Events, &regular); err != nil {
+				t.Fatal(err)
+			}
+			// All-Star events use season type 2 and special teams. Their unusual
+			// competition details should not reach ordinary game validation/storage.
+			excluded := []json.RawMessage{
+				json.RawMessage(`{"id":"allstar","season":{"year":2026,"type":2},"competitions":[{"type":{"abbreviation":"ALLSTAR"},"competitors":[{"team":{"id":"132374"}}]}]}`),
+				json.RawMessage(`{"id":"preseason","season":{"year":2026,"type":1},"competitions":[{"competitors":[{"team":{"id":"111124"}}]}]}`),
+			}
+			for _, mixed := range []bool{false, true} {
+				events := append([]json.RawMessage{}, excluded...)
+				if mixed {
+					events = append(events, regular...)
+				}
+				var err error
+				original.Events, err = json.Marshal(events)
+				if err != nil {
+					t.Fatal(err)
+				}
+				body, err := json.Marshal(original)
+				if err != nil {
+					t.Fatal(err)
+				}
+				skipped := map[string]string{}
+				c := testClient(t, func(w http.ResponseWriter, _ *http.Request) { respond(w, body) })
+				c.onSkippedEvent = func(id, reason string) { skipped[id] = reason }
+				games, err := c.FetchGames(context.Background(), league, time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC))
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := 0
+				if mixed {
+					want = len(regular)
+				}
+				if len(games) != want || len(skipped) != 2 || skipped["allstar"] != "All-Star exhibition" || skipped["preseason"] != "preseason" {
+					t.Fatalf("games=%d skipped=%v", len(games), skipped)
+				}
+			}
+		})
+	}
+}
