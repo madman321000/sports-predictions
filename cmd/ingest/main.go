@@ -64,6 +64,11 @@ func run() error {
 		}
 		return nil
 	}
+	if options.resource == "players" {
+		result, err := ingest.IngestPlayers(ctx, client, postgres.NewPostgresPlayerRepository(pool), options.players)
+		log.Printf("imported %d player statistic lines across %d games; skipped %d complete games", result.LinesProcessed, result.GamesProcessed, result.GamesSkipped)
+		return err
+	}
 	result, err := ingest.IngestGames(ctx, client, postgres.NewPostgresGameRepository(pool), options.games)
 	log.Printf("processed %d %s game records across %d committed dates; skipped %d complete dates", result.GamesProcessed, options.league, result.DatesProcessed, result.DatesSkipped)
 	return err

@@ -1,26 +1,27 @@
 # sports-predictions
 
 A Go learning project for a sports prediction platform. It seeds NBA/NFL league
-reference data and imports NBA/NFL teams, schedules, and game results from ESPN
+reference data and imports NBA/NFL teams, schedules, game results, and historical player box scores from ESPN
 into PostgreSQL. Prediction models are not implemented yet.
 
 ## Code organization
 
 - `cmd/`: configuration, dependency wiring, and command lifecycle.
 - `internal/seed/` and `internal/ingest/`: workflows and the interfaces they consume.
-- `internal/league/`, `internal/team/`, and `internal/game/`: shared application types.
+- `internal/league/`, `internal/team/`, `internal/game/`, and `internal/player/`: shared application types.
 - `internal/postgres/`: repositories and SQL (`PostgresLeagueRepository` and
-  `PostgresTeamRepository`, plus `PostgresGameRepository`).
+  `PostgresTeamRepository`, plus `PostgresGameRepository` and `PostgresPlayerRepository`).
 - `internal/provider/espn/`: one package split by responsibility: `client.go`
   executes HTTP requests, `rate_limit.go` handles pacing and cancellation,
   `retry.go` contains retry policy, `errors.go` defines provider errors, and
-  `teams.go` and `games.go` fetch and decode teams and scoreboards for both sports.
+  `teams.go`, `games.go`, and `players.go` fetch and decode teams, scoreboards, and player box scores for both sports.
   `leagues.go` selects the endpoint; `status.go` maps game statuses. Tests follow the same file grouping.
 
-The workflows call `FetchTeams` or `FetchGames` on their source and persist through
-store interfaces. The command wires `IngestTeams` and `IngestGames`; ESPN response
+The workflows call `FetchTeams`, `FetchGames`, or `FetchPlayerGame` on their source
+and persist through store interfaces. The command wires `IngestTeams`,
+`IngestGames`, and `IngestPlayers`; ESPN response
 types stay inside the provider package. `options.go` validates CLI arguments,
-while game-date workers live in `internal/ingest/games.go`.
+while game-date and player-game workers live in their corresponding ingest files.
 
 ## Prerequisites
 
@@ -85,13 +86,16 @@ docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v O
   < migrations/000003_create_games.up.sql
 docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
   < migrations/000004_create_import_snapshots.up.sql
+docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 --single-transaction' \
+  < migrations/000005_create_players.up.sql
 ```
 
 This uses the PostgreSQL client inside the container; no local `psql` installation
 is required. The project does not yet have a migration runner or migration history
 table. Apply each migration once per database, in numeric order. If you already
 applied migrations 000001 through 000003, run only
-`000004_create_import_snapshots.up.sql`.
+`000004_create_import_snapshots.up.sql` followed by `000005_create_players.up.sql`.
+If migrations 000001 through 000004 are already applied, run only migration 000005.
 Skip migrations already applied; these migrations are not designed to be rerun.
 
 ### 5. Seed NBA and NFL
@@ -152,6 +156,107 @@ to import teams; no placeholder teams are created. Older fetched snapshots canno
 overwrite newer ones when workers finish out of order. Missing games are not
 deleted, so refresh the relevant dates to collect later results or schedule changes.
 
+### 8. Import historical player data
+
+After importing teams and **all game dates you want to analyze**, run:
+
+```sh
+# NBA 2025–26 uses ESPN season year 2026; NFL 2025 uses year 2025.
+go run ./cmd/ingest -resource players -league NBA -season 2026
+go run ./cmd/ingest -resource players -league NFL -season 2025
+
+# Postseason is a separate dataset; regular season (2) is the default.
+go run ./cmd/ingest -resource players -league NBA -season 2026 -season-type 3
+go run ./cmd/ingest -resource players -league NFL -season 2025 -season-type 3
+```
+
+Set `INGEST_TIMEOUT=4h` in your existing `.env` for a full-season backfill. At
+five seconds per request, NBA player box scores alone take roughly two hours for
+a full regular season; NFL takes roughly 23 minutes, plus response/processing time.
+The five-minute default is useful for small runs but will interrupt a season import.
+Rerunning resumes from committed games. Keep only one importer running at a time.
+`-workers 1` through `4` shares the existing rate limiter; `-force` refreshes stored
+box scores to collect corrections. Neither flag bypasses pacing or blocking responses.
+
+The command selects **stored final games** for the requested league, season and
+season type. It makes no scoreboard or team-list requests. Each missing game needs
+one ESPN summary request, which contains both teams' player statistics. The
+response must match the requested game, league, season and teams and be final.
+An empty or malformed summary fails without marking that game complete.
+
+Migration 000005 adds:
+
+- `players`: provider/league-scoped ESPN player ID and display name.
+- `player_game_stats`: historical team, position and jersey when provided,
+  nullable starter flag, explicit did-not-play flag, category and raw statistic
+  values. NFL players may have multiple categories in one game.
+- `player_game_imports`: atomic per-game completion records. Missing statistic
+  rows invalidate completion; failed refreshes retain the previous complete import.
+- `player_season_teams`: team membership observed in imported game box scores,
+  preserving trades instead of assigning every historical game to a current team.
+- `player_season_totals`: additive totals per player, team, season, season type,
+  category and metric, derived from complete imported games. Made/attempted pairs
+  are split into numeric metrics. Percentages, averages, ratings, minutes and
+  longest plays are retained as raw values rather than incorrectly summed.
+- `player_season_coverage`: stored final games versus completed player imports.
+
+These are **basic player profiles and box-score participation history**, not a
+complete historical roster or biography dataset. In particular, NFL box scores
+omit players without recorded statistics. Missing fields and DNP values are not
+zero statistics. Raw values preserve formats such as `17/32` and `--`.
+
+Season totals cover only imported games; they are not independently fetched ESPN
+season totals. Importing seven days of games produces seven days of player data,
+not a full season. Coverage checks cannot discover dates absent from your database.
+To backfill the most recent completed seasons, run the following date batches
+before the player commands above (each batch remains within the 31-day limit):
+
+```sh
+while read -r from to; do
+  go run ./cmd/ingest -resource games -league NBA -from "$from" -to "$to" || exit 1
+done <<'DATES'
+2025-10-01 2025-10-31
+2025-11-01 2025-11-30
+2025-12-01 2025-12-31
+2026-01-01 2026-01-31
+2026-02-01 2026-02-28
+2026-03-01 2026-03-31
+2026-04-01 2026-04-30
+2026-05-01 2026-05-31
+2026-06-01 2026-06-30
+DATES
+
+while read -r from to; do
+  go run ./cmd/ingest -resource games -league NFL -from "$from" -to "$to" || exit 1
+done <<'DATES'
+2025-09-01 2025-09-30
+2025-10-01 2025-10-31
+2025-11-01 2025-11-30
+2025-12-01 2025-12-31
+2026-01-01 2026-01-31
+2026-02-01 2026-02-28
+DATES
+```
+
+Inspect coverage and totals using the database container:
+
+```sh
+docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+SELECT * FROM player_season_coverage ORDER BY league_id, season, season_type;
+SELECT p.name, l.abbreviation, t.abbreviation AS team, s.season, s.season_type,
+       s.category, s.metric, s.total, s.games_with_metric
+FROM player_season_totals s
+JOIN players p ON p.id=s.player_id
+JOIN leagues l ON l.id=s.league_id
+JOIN teams t ON t.id=s.team_id
+ORDER BY p.name, s.season, s.category, s.metric;
+SQL
+```
+
+Before modeling, check date coverage and resolve failed imports. Features for a
+particular game must use only earlier games; using end-of-season totals to predict
+an earlier game would leak its future results into the model.
+
 ### Avoid repeat requests
 
 Normal imports check PostgreSQL before contacting ESPN:
@@ -160,6 +265,7 @@ Normal imports check PostgreSQL before contacting ESPN:
   team in that response is still in the database. This applies to both NBA and NFL.
 - **Games:** skip a date when a successful full scoreboard import exists and every
   game in that response is stored as final with both scores. Zero is a valid score.
+- **Players:** skip a final game with an intact player import; use `-force` for corrections.
 - Dates with scheduled, live, postponed, canceled, or missing games still refresh.
   Empty dates also refresh so a previously empty future schedule is not cached forever.
 
@@ -202,8 +308,7 @@ not increase ESPN request throughput or bypass access restrictions.
 On the first error, pending workers are canceled. Dates already committed remain;
 the command reports committed dates, skipped dates, and processed game records even on failure.
 Counts are records processed, not unique inserts (a rescheduled game can appear on
-multiple dates). Rerun the same bounded range to recover. There is no persistent
-checkpoint or cross-process limiter yet; run only one importer process at a time.
+multiple dates). Rerun the same bounded range to recover. Completed import records persist in PostgreSQL; there is no cross-process limiter yet; run only one importer process at a time.
 
 Set `ESPN_REQUEST_INTERVAL=10s` in `.env` for a longer delay. The optional
 `-request-interval` flag overrides that setting for a single run. The five-second

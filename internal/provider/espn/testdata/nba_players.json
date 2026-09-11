@@ -1,0 +1,102 @@
+{
+  "header": {
+    "id": "g1",
+    "league": {
+      "abbreviation": "NBA"
+    },
+    "season": {
+      "year": 2026,
+      "type": 2
+    },
+    "competitions": [
+      {
+        "status": {
+          "type": {
+            "completed": true,
+            "state": "post"
+          }
+        }
+      }
+    ]
+  },
+  "boxscore": {
+    "players": [
+      {
+        "team": {
+          "id": "1"
+        },
+        "statistics": [
+          {
+            "name": "general",
+            "keys": [
+              "points",
+              "fieldGoalsMade-fieldGoalsAttempted"
+            ],
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "p1",
+                  "displayName": "Player One",
+                  "jersey": "1",
+                  "position": {
+                    "abbreviation": "G"
+                  }
+                },
+                "stats": [
+                  "0",
+                  "0-2"
+                ]
+              },
+              {
+                "athlete": {
+                  "id": "dnp",
+                  "displayName": "Inactive Player"
+                },
+                "didNotPlay": true,
+                "stats": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "team": {
+          "id": "2"
+        },
+        "statistics": [
+          {
+            "name": "general",
+            "keys": [
+              "points",
+              "fieldGoalsMade-fieldGoalsAttempted"
+            ],
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "p1away",
+                  "displayName": "Player One",
+                  "jersey": "1",
+                  "position": {
+                    "abbreviation": "G"
+                  }
+                },
+                "stats": [
+                  "0",
+                  "0-2"
+                ]
+              },
+              {
+                "athlete": {
+                  "id": "dnpaway",
+                  "displayName": "Inactive Player"
+                },
+                "didNotPlay": true,
+                "stats": []
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -43,3 +43,21 @@ func TestForceRefreshOptions(t *testing.T) {
 		t.Fatalf("force games: %+v %v", options, err)
 	}
 }
+
+func TestPlayerOptions(t *testing.T) {
+	cfg := &config.Config{ESPNRequestInterval: 5 * time.Second, IngestWorkers: 1}
+	good, err := parseOptions([]string{"-resource", "players", "-league", "NFL", "-season", "2025", "-season-type", "3", "-workers", "2", "-force"}, cfg, io.Discard)
+	if err != nil || good.players.Season != 2025 || good.players.SeasonType != 3 || !good.players.Force || good.players.Workers != 2 {
+		t.Fatalf("%+v %v", good, err)
+	}
+	for _, args := range [][]string{
+		{"-resource", "players"},
+		{"-resource", "players", "-season", "2025", "-season-type", "1"},
+		{"-resource", "players", "-season", "2025", "-from", "2025-09-01"},
+		{"-resource", "teams", "-season", "2025"},
+	} {
+		if _, err := parseOptions(args, cfg, io.Discard); err == nil {
+			t.Fatalf("accepted %v", args)
+		}
+	}
+}
