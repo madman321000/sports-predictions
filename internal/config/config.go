@@ -93,3 +93,16 @@ func environment(path string) (func(string) string, error) {
 		return values[key]
 	}, nil
 }
+
+// LoadDatabaseURL loads only the connection needed by offline data commands.
+func LoadDatabaseURL() (string, error) {
+	value, err := environment(".env")
+	if err != nil {
+		return "", err
+	}
+	url := value("DATABASE_URL")
+	if url == "" {
+		return "", errors.New("DATABASE_URL is required in .env or the environment")
+	}
+	return url, nil
+}

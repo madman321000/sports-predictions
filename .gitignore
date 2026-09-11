@@ -36,3 +36,6 @@ go.work.sum
 # Generated coverage reports
 coverage.html
 coverage.txt
+
+# Local data exports
+/exports/

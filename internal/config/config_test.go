@@ -100,3 +100,16 @@ func TestLoadTestDatabaseURL(t *testing.T) {
 		t.Fatalf("got %q, %v", got, err)
 	}
 }
+
+func TestLoadDatabaseURL(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://example/database")
+	t.Setenv("ESPN_REQUEST_INTERVAL", "invalid")
+	got, err := LoadDatabaseURL()
+	if err != nil || got != "postgres://example/database" {
+		t.Fatalf("%q %v", got, err)
+	}
+	t.Setenv("DATABASE_URL", "")
+	if _, err := LoadDatabaseURL(); err == nil {
+		t.Fatal("accepted missing database URL")
+	}
+}
