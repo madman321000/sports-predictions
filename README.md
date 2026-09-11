@@ -344,6 +344,85 @@ availability does not establish permission for every use of its data.
 Tests use a local HTTP server and a small synthetic ESPN-shaped fixture. CI never
 calls the live ESPN endpoint.
 
+## Check data quality and export
+
+After applying migrations through **000005** and importing the games and players,
+use the offline data command. This change requires **no new migration** and makes
+no ESPN requests. It reads `DATABASE_URL` from your existing `.env`; ESPN settings
+are not required. Queries run in a read-only, repeatable database snapshot.
+
+```sh
+go run ./cmd/data -action quality -league NBA -season 2026 \
+  -from 2025-10-01 -to 2026-06-30
+
+go run ./cmd/data -action quality -league NFL -season 2025 \
+  -from 2025-09-01 -to 2026-02-28
+```
+
+The command prints a JSON report to stdout and returns a nonzero exit status when
+it finds problems. Redirect stdout to a file if you want to save the report;
+errors remain on stderr. The report lists:
+
+- Stored and final games, games with intact player imports, and player-category rows.
+- Non-final games, missing final scores, missing/incomplete player imports, and
+  empty or missing statistic values for players who played. Zero is valid; DNP
+  rows do not need statistics. Optional position, jersey and starter fields are
+  allowed to be missing.
+- Games listed in saved imports for the expected date range but missing from
+  the games table. These findings cover the date range across season types, since
+  a deleted row no longer has season metadata.
+- Expected dates without a successful scoreboard import, including dates that
+  have no games. Omitting `-from`/`-to` produces an unchecked-date finding.
+
+`-season-type 2` (regular season) is the default. Run separately with
+`-season-type 3` for postseason. **Season and season type select the dataset.**
+The date flags only describe the ESPN calendar dates you expect to have imported;
+they do not filter exported games by UTC start time. Use the full backfill range
+for a season audit. A stored date proves a fetch succeeded, not that ESPN supplied
+every game. Compare coverage against the season schedule before modeling.
+
+Resolve findings by running the corresponding game/player imports and checking
+again. A non-final canceled or postponed game can require investigation rather
+than another fetch. Use player `-force` to collect corrections to already stored
+box scores when needed; the quality command itself never changes records.
+
+Export after reviewing the report:
+
+```sh
+mkdir -p exports
+go run ./cmd/data -action export -league NBA -season 2026 \
+  -from 2025-10-01 -to 2026-06-30 -out exports/nba-2026
+
+go run ./cmd/data -action export -league NFL -season 2025 \
+  -from 2025-09-01 -to 2026-02-28 -out exports/nfl-2025
+```
+
+Each export creates a **new** directory and refuses to overwrite an existing one:
+
+- `games.csv`: one row per stored final game, ESPN game/team IDs, scope, UTC start
+  time, scores and a player-import-complete flag.
+- `players.csv`: one row per game/player/statistic category, with ESPN IDs, player
+  name, historical team/position/jersey, DNP and nullable starter flags, and
+  `stats_json`. Parse this JSON column to retain provider metric names and original
+  values such as `17/32`; NFL players can appear in multiple categories. Only
+  intact completed game imports contribute player rows.
+- `report.json`: schema version, scope, timestamp, counts, findings and limitations.
+  Written last, its presence marks a completed export. A failed export cleans up
+  its newly created directory. CSV rows are ordered by game time/ID, then player
+  ID/category, and CSV quoting preserves commas and quotes in names and JSON.
+
+By default, quality findings prevent export. For an intentional partial dataset,
+add `-allow-incomplete`; the report keeps its findings and
+`ready_for_export: false`. Non-final games and partial player imports remain
+excluded. Missing CSV values are empty, never converted to zero. The `exports/`
+directory is ignored by Git. Both commands currently have a five-minute database
+read deadline and support Ctrl+C.
+
+These exports are **observations, not model features**: scores and player box
+scores become available after the game. Next we will build chronological features
+from earlier games and a separate target; do not use the current game's outcome
+or box score as a predictor.
+
 ## Stop and restart
 
 ```sh
