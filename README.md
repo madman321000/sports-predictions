@@ -368,6 +368,9 @@ errors remain on stderr. The report lists:
   empty or missing statistic values for players who played. Zero is valid; DNP
   rows do not need statistics. Optional position, jersey and starter fields are
   allowed to be missing.
+- Games listed in saved imports for the expected date range but missing from
+  the games table. These findings cover the date range across season types, since
+  a deleted row no longer has season metadata.
 - Expected dates without a successful scoreboard import, including dates that
   have no games. Omitting `-from`/`-to` produces an unchecked-date finding.
 

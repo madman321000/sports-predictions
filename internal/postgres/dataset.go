@@ -73,6 +73,31 @@ func (r *PostgresDatasetRepository) Read(ctx context.Context, s dataset.Scope) (
 			}
 			data.ImportDates = append(data.ImportDates, date)
 		}
+
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		if s.From == "" {
+			return nil
+		}
+		rows, err = tx.Query(ctx, `SELECT DISTINCT expected.external_id
+ FROM game_date_imports i JOIN leagues l ON l.id=i.league_id
+ CROSS JOIN LATERAL unnest(i.external_ids) expected(external_id)
+ LEFT JOIN games g ON g.league_id=i.league_id AND g.provider=i.provider AND g.external_id=expected.external_id
+ WHERE l.abbreviation=$1 AND i.provider='espn' AND i.import_date BETWEEN $2::date AND $3::date AND g.id IS NULL
+ ORDER BY expected.external_id`, s.League, s.From, s.To)
+		if err != nil {
+			return err
+		}
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				rows.Close()
+				return err
+			}
+			data.MissingGameIDs = append(data.MissingGameIDs, id)
+		}
 		rows.Close()
 		return rows.Err()
 	})

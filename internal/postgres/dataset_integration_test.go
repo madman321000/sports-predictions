@@ -85,6 +85,26 @@ func TestDatasetReadIntegration(t *testing.T) {
 	if len(data.Players) != 0 || data.Games[0].PlayersComplete {
 		t.Fatalf("partial snapshot %+v", data)
 	}
+
+	// The saved date manifest still promises a playoff game even if its row was
+	// deleted. Date coverage alone must not hide that missing record.
+	if _, e := pool.Exec(ctx, "DELETE FROM games WHERE external_id='playoff' AND league_id=(SELECT id FROM leagues WHERE abbreviation='NBA')"); e != nil {
+		t.Fatal(e)
+	}
+	data, e = dr.Read(ctx, scope)
+	if e != nil || len(data.MissingGameIDs) != 1 || data.MissingGameIDs[0] != "playoff" {
+		t.Fatalf("missing manifest game %+v %v", data, e)
+	}
+	report := dataset.Audit(scope, data)
+	found := false
+	for _, issue := range report.Issues {
+		if issue.Code == "missing_game_row" {
+			found = true
+		}
+	}
+	if !found || report.Ready {
+		t.Fatalf("missing manifest game not reported: %+v", report)
+	}
 	scope.Season = 2025
 	data, e = dr.Read(ctx, scope)
 	if e != nil || len(data.Games) != 0 {

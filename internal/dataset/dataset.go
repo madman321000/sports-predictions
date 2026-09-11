@@ -51,9 +51,10 @@ type Player struct {
 	Stats                                                    string
 }
 type Snapshot struct {
-	Games       []Game
-	Players     []Player
-	ImportDates []string
+	Games          []Game
+	Players        []Player
+	ImportDates    []string
+	MissingGameIDs []string
 }
 type Issue struct {
 	Code   string `json:"code"`
@@ -77,6 +78,9 @@ func Audit(s Scope, data Snapshot) Report {
 	r := Report{SchemaVersion: 1, Scope: s, GeneratedAt: time.Now().UTC(), StoredGames: len(data.Games), PlayerRows: len(data.Players), MissingImportDates: []string{}, Issues: []Issue{}, Limitations: []string{"Checks stored records only; cannot prove ESPN returned every scheduled game.", "Player history contains box-score participants, not complete rosters.", "Export contains outcomes and post-game statistics; use only earlier games when building predictive features."}}
 	if len(data.Games) == 0 {
 		r.Issues = append(r.Issues, Issue{"no_games", "No games stored for the requested season and season type."})
+	}
+	for _, id := range data.MissingGameIDs {
+		r.Issues = append(r.Issues, Issue{"missing_game_row", id + ": present in an expected date import but absent from games"})
 	}
 	for _, g := range data.Games {
 		if g.Status != "final" {
