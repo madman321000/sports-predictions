@@ -24,6 +24,8 @@ type GameOptions struct {
 	From, To time.Time
 	Workers  int
 	Force    bool
+	// Progress is called serially after each committed or skipped date. It must return promptly.
+	Progress func(GameResult)
 }
 type GameResult struct {
 	DatesProcessed int
@@ -49,9 +51,6 @@ func (o GameOptions) Validate() error {
 	if fromOffset != 0 || toOffset != 0 {
 		return fmt.Errorf("from/to must use UTC calendar dates")
 	}
-	if o.To.Sub(o.From) >= 31*24*time.Hour {
-		return fmt.Errorf("import at most 31 days per run")
-	}
 	return nil
 }
 
@@ -66,12 +65,19 @@ func IngestGames(ctx context.Context, source GameSource, store GameStore, option
 	if err != nil {
 		return result, fmt.Errorf("look up league (run migrations and seed first): %w", err)
 	}
-	dates := make(chan time.Time, 31)
-	for date := options.From.UTC(); !date.After(options.To); date = date.AddDate(0, 0, 1) {
-		dates <- date
-	}
-	close(dates)
+	dates := make(chan time.Time, options.Workers)
 	group, workCtx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		defer close(dates)
+		for date := options.From.UTC(); !date.After(options.To); date = date.AddDate(0, 0, 1) {
+			select {
+			case <-workCtx.Done():
+				return workCtx.Err()
+			case dates <- date:
+			}
+		}
+		return nil
+	})
 	var mu sync.Mutex
 	for i := 0; i < options.Workers; i++ {
 		group.Go(func() error {
@@ -87,6 +93,9 @@ func IngestGames(ctx context.Context, source GameSource, store GameStore, option
 					if complete {
 						mu.Lock()
 						result.DatesSkipped++
+						if options.Progress != nil {
+							options.Progress(result)
+						}
 						mu.Unlock()
 						continue
 					}
@@ -101,6 +110,9 @@ func IngestGames(ctx context.Context, source GameSource, store GameStore, option
 				mu.Lock()
 				result.DatesProcessed++
 				result.GamesProcessed += len(games)
+				if options.Progress != nil {
+					options.Progress(result)
+				}
 				mu.Unlock()
 			}
 			return nil

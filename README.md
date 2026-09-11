@@ -140,7 +140,7 @@ go run ./cmd/ingest -resource games -league NBA -from 2026-01-01 -to 2026-01-07
 go run ./cmd/ingest -resource games -league NFL -from 2025-09-07 -to 2025-09-08
 ```
 
-Both dates are required and inclusive, with at most 31 days per run. They select
+Both dates are required and inclusive. Full-season and longer date ranges are supported. They select
 ESPN scoreboard calendar dates, not a filter on UTC game start times. Start times
 are stored in UTC. NFL season year, season type, and week are preserved when
 provided; the season year is not inferred from the game's calendar year.
@@ -208,35 +208,31 @@ zero statistics. Raw values preserve formats such as `17/32` and `--`.
 Season totals cover only imported games; they are not independently fetched ESPN
 season totals. Importing seven days of games produces seven days of player data,
 not a full season. Coverage checks cannot discover dates absent from your database.
-To backfill the most recent completed seasons, run the following date batches
-before the player commands above (each batch remains within the 31-day limit):
+To backfill the most recent completed seasons, run one range per league before
+the player commands above. Set `INGEST_TIMEOUT=4h` in your existing `.env` first:
 
 ```sh
-while read -r from to; do
-  go run ./cmd/ingest -resource games -league NBA -from "$from" -to "$to" || exit 1
-done <<'DATES'
-2025-10-01 2025-10-31
-2025-11-01 2025-11-30
-2025-12-01 2025-12-31
-2026-01-01 2026-01-31
-2026-02-01 2026-02-28
-2026-03-01 2026-03-31
-2026-04-01 2026-04-30
-2026-05-01 2026-05-31
-2026-06-01 2026-06-30
-DATES
+go run ./cmd/ingest -resource games -league NBA \
+  -from 2025-10-01 -to 2026-06-30 -workers 4
 
-while read -r from to; do
-  go run ./cmd/ingest -resource games -league NFL -from "$from" -to "$to" || exit 1
-done <<'DATES'
-2025-09-01 2025-09-30
-2025-10-01 2025-10-31
-2025-11-01 2025-11-30
-2025-12-01 2025-12-31
-2026-01-01 2026-01-31
-2026-02-01 2026-02-28
-DATES
+go run ./cmd/ingest -resource games -league NFL \
+  -from 2025-09-01 -to 2026-02-28 -workers 4
 ```
+
+Dates flow through a queue bounded by the worker count, so a long range does not
+need to fit in memory before workers start. Progress logs show finished dates,
+imported dates, skipped dates and processed game records after every ten finished
+dates, after a date finishes at least 30 seconds since the last update, and on the
+last date. The final summary also reports partial progress on failure. Dates may
+finish out of order. Rerun the same range to resume; completed final dates are
+skipped, while empty or unfinished dates are checked again.
+
+At five-second request spacing, the NBA example needs roughly 23 minutes for
+scoreboard requests alone and NFL roughly 15 minutes, plus response time and
+retries. The default five-minute command timeout is too short for a fresh season.
+More workers overlap processing and database writes; all ESPN requests still
+share the existing limiter. Run the league commands sequentially, not as separate
+concurrent processes.
 
 Inspect coverage and totals using the database container:
 
@@ -308,7 +304,7 @@ not increase ESPN request throughput or bypass access restrictions.
 On the first error, pending workers are canceled. Dates already committed remain;
 the command reports committed dates, skipped dates, and processed game records even on failure.
 Counts are records processed, not unique inserts (a rescheduled game can appear on
-multiple dates). Rerun the same bounded range to recover. Completed import records persist in PostgreSQL; there is no cross-process limiter yet; run only one importer process at a time.
+multiple dates). Rerun the same date range to recover. Completed import records persist in PostgreSQL; there is no cross-process limiter yet; run only one importer process at a time.
 
 Set `ESPN_REQUEST_INTERVAL=10s` in `.env` for a longer delay. The optional
 `-request-interval` flag overrides that setting for a single run. The five-second

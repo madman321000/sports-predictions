@@ -12,6 +12,8 @@ func TestParseOptions(t *testing.T) {
 	cfg := &config.Config{ESPNRequestInterval: 5 * time.Second, IngestWorkers: 1}
 	for _, args := range [][]string{
 		{"-league", "NFL", "-resource", "teams"},
+		{"-resource", "games", "-league", "NBA", "-from", "2025-10-01", "-to", "2026-06-30", "-workers", "4"},
+		{"-resource", "games", "-league", "NFL", "-from", "2025-09-01", "-to", "2026-02-28", "-workers", "4"},
 		{"-league", "NBA", "-resource", "games", "-from", "2026-01-01", "-to", "2026-01-31", "-workers", "3"},
 		{"-league", "NFL", "-resource", "games", "-from", "2025-09-07", "-to", "2025-09-07"},
 	} {
@@ -24,7 +26,6 @@ func TestParseOptions(t *testing.T) {
 		{"-resource", "teams", "-from", "2026-01-01"},
 		{"-resource", "games", "-from", "2026-02-30", "-to", "2026-03-01"},
 		{"-resource", "games", "-from", "2026-02-01", "-to", "2026-01-01"},
-		{"-resource", "games", "-from", "2026-01-01", "-to", "2026-02-01"},
 	} {
 		if _, err := parseOptions(args, cfg, io.Discard); err == nil {
 			t.Fatalf("accepted %v", args)

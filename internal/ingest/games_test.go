@@ -188,3 +188,59 @@ func TestGamesCacheErrorDoesNotCallProvider(t *testing.T) {
 		t.Fatalf("error=%v", err)
 	}
 }
+
+func TestFullSeasonDatesAndProgress(t *testing.T) {
+	options := gameOptions(4)
+	options.From = time.Date(2023, 10, 1, 0, 0, 0, 0, time.UTC)
+	options.To = time.Date(2024, 6, 30, 0, 0, 0, 0, time.UTC)
+	var mu sync.Mutex
+	seen := map[string]int{}
+	source := gameSource{fetch: func(_ context.Context, _ string, d time.Time) ([]game.Game, error) {
+		mu.Lock()
+		seen[d.Format(time.DateOnly)]++
+		mu.Unlock()
+		return []game.Game{{ExternalID: d.Format(time.DateOnly)}}, nil
+	}}
+	store := gameStore{save: func(context.Context, []game.Game) error { return nil }, complete: func(d time.Time) (bool, error) { return d.Day() == 1, nil }}
+	var progress []ingest.GameResult
+	options.Progress = func(r ingest.GameResult) { progress = append(progress, r) }
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	result, err := ingest.IngestGames(ctx, source, store, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.DatesProcessed != 265 || result.DatesSkipped != 9 || len(progress) != 274 {
+		t.Fatalf("result %+v progress %d", result, len(progress))
+	}
+	for d := options.From; !d.After(options.To); d = d.AddDate(0, 0, 1) {
+		want := 1
+		if d.Day() == 1 {
+			want = 0
+		}
+		if seen[d.Format(time.DateOnly)] != want {
+			t.Fatalf("date %s count %d want %d", d, seen[d.Format(time.DateOnly)], want)
+		}
+	}
+	for i, r := range progress {
+		if r.DatesProcessed+r.DatesSkipped != i+1 {
+			t.Fatalf("out of order progress %+v", progress)
+		}
+	}
+	if progress[len(progress)-1] != result {
+		t.Fatal("last progress differs from result")
+	}
+}
+
+func TestLongRangeProducerStopsOnFailure(t *testing.T) {
+	options := gameOptions(1)
+	options.To = options.From.AddDate(20, 0, 0)
+	failure := errors.New("stop")
+	source := gameSource{fetch: func(context.Context, string, time.Time) ([]game.Game, error) { return nil, failure }}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, err := ingest.IngestGames(ctx, source, gameStore{}, options)
+	if !errors.Is(err, failure) {
+		t.Fatalf("producer failed to cancel: %v", err)
+	}
+}

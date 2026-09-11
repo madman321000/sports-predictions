@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/madman321000/sports-predictions/internal/config"
 	"github.com/madman321000/sports-predictions/internal/database"
@@ -68,6 +69,16 @@ func run() error {
 		result, err := ingest.IngestPlayers(ctx, client, postgres.NewPostgresPlayerRepository(pool), options.players)
 		log.Printf("imported %d player statistic lines across %d games; skipped %d complete games", result.LinesProcessed, result.GamesProcessed, result.GamesSkipped)
 		return err
+	}
+	total := (options.games.To.Unix()-options.games.From.Unix())/86400 + 1
+	log.Printf("starting %s game import: %d dates, %d workers, request interval %s", options.league, total, options.games.Workers, options.interval)
+	lastProgress := time.Now()
+	options.games.Progress = func(result ingest.GameResult) {
+		done := result.DatesProcessed + result.DatesSkipped
+		if done%10 == 0 || int64(done) == total || time.Since(lastProgress) >= 30*time.Second {
+			log.Printf("%s progress: %d/%d dates finished; %d imported, %d skipped, %d game records", options.league, done, total, result.DatesProcessed, result.DatesSkipped, result.GamesProcessed)
+			lastProgress = time.Now()
+		}
 	}
 	result, err := ingest.IngestGames(ctx, client, postgres.NewPostgresGameRepository(pool), options.games)
 	log.Printf("processed %d %s game records across %d committed dates; skipped %d complete dates", result.GamesProcessed, options.league, result.DatesProcessed, result.DatesSkipped)
