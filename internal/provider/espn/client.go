@@ -81,7 +81,7 @@ func (c *Client) getSnapshot(ctx context.Context, path string) (*snapshot, error
 			return nil, err
 		}
 		req.Header.Set("Accept", "application/json")
-		req.Header.Set("User-Agent", "sports-predictions/0.1 (learning project)")
+		// Let net/http supply its standard User-Agent.
 		resp, err := c.http.Do(req)
 		c.next = time.Now().Add(c.interval)
 		if err != nil {
