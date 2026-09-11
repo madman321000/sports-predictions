@@ -431,6 +431,15 @@ migration reapplied.
 
 ## Troubleshooting
 
+The ESPN client uses Go's standard `Go-http-client/1.1` User-Agent and requests
+JSON. Local curl diagnostics returned 403 with the previous custom User-Agent
+and 200 with the standard Go value, making that header a suspected cause rather
+than proof of the restriction's source. After pulling this change, verify a single
+team import before starting a full season. If a complete team import is already
+stored, `-force` is needed to exercise the HTTP request. If it returns 403 again,
+stop; the client still does not retry 403/429 responses. No browser cookies or
+additional configuration are needed.
+
 - **Missing configuration:** copy `.env.example` to `.env`, check the required
   settings, and run from the repository root.
 - **Connection refused:** check `docker compose ps` and database readiness.

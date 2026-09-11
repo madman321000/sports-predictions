@@ -55,3 +55,21 @@ func TestNewClientValidatesOptions(t *testing.T) {
 		t.Fatal("accepted missing timeout")
 	}
 }
+
+func TestClientUsesStandardGoHeaders(t *testing.T) {
+	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if got := r.UserAgent(); got != "Go-http-client/1.1" {
+			t.Errorf("User-Agent = %q", got)
+		}
+		if got := r.Header.Get("Accept"); got != "application/json" {
+			t.Errorf("Accept = %q", got)
+		}
+		if r.Header.Get("Cookie") != "" {
+			t.Error("unexpected cookies")
+		}
+		respond(w, []byte(`{}`))
+	})
+	if _, err := c.get(context.Background(), "/test"); err != nil {
+		t.Fatal(err)
+	}
+}
