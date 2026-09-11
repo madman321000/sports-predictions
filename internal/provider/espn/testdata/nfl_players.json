@@ -1,0 +1,180 @@
+{
+  "header": {
+    "id": "g1",
+    "league": {
+      "abbreviation": "NFL"
+    },
+    "season": {
+      "year": 2025,
+      "type": 2
+    },
+    "competitions": [
+      {
+        "status": {
+          "type": {
+            "completed": true,
+            "state": "post"
+          }
+        }
+      }
+    ]
+  },
+  "boxscore": {
+    "players": [
+      {
+        "team": {
+          "id": "1"
+        },
+        "statistics": [
+          {
+            "name": "passing",
+            "keys": [
+              "completions/passingAttempts",
+              "passingYards",
+              "QBRating"
+            ],
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "p1",
+                  "displayName": "Player One",
+                  "jersey": "1",
+                  "position": {
+                    "abbreviation": "QB"
+                  }
+                },
+                "stats": [
+                  "17/32",
+                  "167",
+                  "99.3"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "rushing",
+            "keys": [
+              "rushingYards"
+            ],
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "p1",
+                  "displayName": "Player One"
+                },
+                "stats": [
+                  "39"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "receiving",
+            "keys": [
+              "sampleStat"
+            ],
+            "athletes": []
+          },
+          {
+            "name": "defensive",
+            "keys": [
+              "sampleStat"
+            ],
+            "athletes": []
+          },
+          {
+            "name": "kicking",
+            "keys": [
+              "sampleStat"
+            ],
+            "athletes": []
+          },
+          {
+            "name": "punting",
+            "keys": [
+              "sampleStat"
+            ],
+            "athletes": []
+          }
+        ]
+      },
+      {
+        "team": {
+          "id": "2"
+        },
+        "statistics": [
+          {
+            "name": "passing",
+            "keys": [
+              "completions/passingAttempts",
+              "passingYards",
+              "QBRating"
+            ],
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "p1away",
+                  "displayName": "Player One",
+                  "jersey": "1",
+                  "position": {
+                    "abbreviation": "QB"
+                  }
+                },
+                "stats": [
+                  "17/32",
+                  "167",
+                  "99.3"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "rushing",
+            "keys": [
+              "rushingYards"
+            ],
+            "athletes": [
+              {
+                "athlete": {
+                  "id": "p1away",
+                  "displayName": "Player One"
+                },
+                "stats": [
+                  "39"
+                ]
+              }
+            ]
+          },
+          {
+            "name": "receiving",
+            "keys": [
+              "sampleStat"
+            ],
+            "athletes": []
+          },
+          {
+            "name": "defensive",
+            "keys": [
+              "sampleStat"
+            ],
+            "athletes": []
+          },
+          {
+            "name": "kicking",
+            "keys": [
+              "sampleStat"
+            ],
+            "athletes": []
+          },
+          {
+            "name": "punting",
+            "keys": [
+              "sampleStat"
+            ],
+            "athletes": []
+          }
+        ]
+      }
+    ]
+  }
+}
