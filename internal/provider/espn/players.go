@@ -103,9 +103,16 @@ func decodePlayerGame(body []byte, league string, game player.GameRef) (player.B
 			}
 			for _, row := range category.Athletes {
 				a := row.Athlete
+				if a.ID == "" && row.DidNotPlay && len(row.Stats) == 0 {
+					result.UnidentifiedDNP++
+					continue
+				}
 				identity := a.ID + "/" + name
-				if a.ID == "" || strings.TrimSpace(a.DisplayName) == "" || identities[identity] {
-					return result, fmt.Errorf("invalid or duplicate player category")
+				if a.ID == "" || strings.TrimSpace(a.DisplayName) == "" {
+					return result, fmt.Errorf("team %s category %s: player missing ID or display name", team.Team.ID, name)
+				}
+				if identities[identity] {
+					return result, fmt.Errorf("duplicate player %s category %s", a.ID, name)
 				}
 				if prior, ok := playerTeams[a.ID]; ok && prior != team.Team.ID {
 					return result, fmt.Errorf("player appears for both teams")

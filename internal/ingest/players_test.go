@@ -36,7 +36,7 @@ func (f *playerFake) FetchPlayerGame(ctx context.Context, _ string, _ player.Gam
 	if f.fail {
 		return player.BoxScore{}, errors.New("fetch failed")
 	}
-	return player.BoxScore{ObservedAt: time.Now(), Lines: []player.Line{{ExternalID: "p"}}}, nil
+	return player.BoxScore{UnidentifiedDNP: 1, ObservedAt: time.Now(), Lines: []player.Line{{ExternalID: "p"}}}, nil
 }
 func (f *playerFake) SavePlayerGame(_ context.Context, g player.GameRef, _ player.BoxScore) error {
 	f.mu.Lock()
@@ -49,7 +49,7 @@ func TestPlayerImportResumeAndForce(t *testing.T) {
 	f := &playerFake{games: []player.GameRef{{ID: 1}, {ID: 2}}, complete: map[int64]bool{1: true}}
 	o := PlayerOptions{League: "NFL", Season: 2025, SeasonType: 2, Workers: 2}
 	r, err := IngestPlayers(context.Background(), f, f, o)
-	if err != nil || r.GamesSkipped != 1 || r.GamesProcessed != 1 || f.calls != 1 {
+	if err != nil || r.GamesSkipped != 1 || r.GamesProcessed != 1 || r.UnidentifiedDNP != 1 || f.calls != 1 {
 		t.Fatalf("%+v %v calls %d", r, err, f.calls)
 	}
 	r, err = IngestPlayers(context.Background(), f, f, o)
@@ -58,7 +58,7 @@ func TestPlayerImportResumeAndForce(t *testing.T) {
 	}
 	o.Force = true
 	r, err = IngestPlayers(context.Background(), f, f, o)
-	if err != nil || r.GamesProcessed != 2 || f.calls != 3 {
+	if err != nil || r.GamesProcessed != 2 || r.UnidentifiedDNP != 2 || f.calls != 3 {
 		t.Fatalf("force %+v %v", r, err)
 	}
 }

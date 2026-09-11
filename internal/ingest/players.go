@@ -22,7 +22,7 @@ type PlayerOptions struct {
 	Season, SeasonType, Workers int
 	Force                       bool
 }
-type PlayerResult struct{ GamesProcessed, GamesSkipped, LinesProcessed int }
+type PlayerResult struct{ GamesProcessed, GamesSkipped, LinesProcessed, UnidentifiedDNP int }
 
 func (o PlayerOptions) Validate() error {
 	if o.League != "NBA" && o.League != "NFL" {
@@ -92,6 +92,7 @@ func IngestPlayers(ctx context.Context, source PlayerSource, store PlayerStore, 
 				mu.Lock()
 				result.GamesProcessed++
 				result.LinesProcessed += len(box.Lines)
+				result.UnidentifiedDNP += box.UnidentifiedDNP
 				mu.Unlock()
 			}
 			return nil

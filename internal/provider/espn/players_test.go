@@ -98,3 +98,41 @@ func TestFetchPlayerGame(t *testing.T) {
 		t.Fatalf("box %v error %v", box, err)
 	}
 }
+
+func TestUnidentifiedDNP(t *testing.T) {
+	body, err := os.ReadFile("testdata/nba_players.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var d playerSummary
+	if err := json.Unmarshal(body, &d); err != nil {
+		t.Fatal(err)
+	}
+	category := &d.Boxscore.Players[0].Statistics[0]
+	row := category.Athletes[1] // Existing statless DNP fixture.
+	row.Athlete.ID = ""
+	row.Athlete.DisplayName = ""
+	category.Athletes = append(category.Athletes, row)
+	g := player.GameRef{ExternalID: "g1", HomeTeamExternalID: "1", AwayTeamExternalID: "2", Season: 2026, SeasonType: 2}
+	encode := func() []byte {
+		t.Helper()
+		b, e := json.Marshal(d)
+		if e != nil {
+			t.Fatal(e)
+		}
+		return b
+	}
+	got, err := decodePlayerGame(encode(), "NBA", g)
+	if err != nil || got.UnidentifiedDNP != 1 || len(got.Lines) != 4 {
+		t.Fatalf("%+v %v", got, err)
+	}
+	category.Athletes[len(category.Athletes)-1].DidNotPlay = false
+	if _, err := decodePlayerGame(encode(), "NBA", g); err == nil {
+		t.Fatal("unidentified participant accepted")
+	}
+	category.Athletes[len(category.Athletes)-1].DidNotPlay = true
+	category.Athletes[len(category.Athletes)-1].Stats = []string{"0", "0-0"}
+	if _, err := decodePlayerGame(encode(), "NBA", g); err == nil {
+		t.Fatal("unidentified row with stats accepted")
+	}
+}

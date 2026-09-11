@@ -5,6 +5,7 @@ package dataset
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -61,6 +62,7 @@ type Issue struct {
 	Detail string `json:"detail"`
 }
 type Report struct {
+	Warnings            []Issue   `json:"warnings"`
 	SchemaVersion       int       `json:"schema_version"`
 	Scope               Scope     `json:"scope"`
 	GeneratedAt         time.Time `json:"generated_at"`
@@ -75,7 +77,7 @@ type Report struct {
 }
 
 func Audit(s Scope, data Snapshot) Report {
-	r := Report{SchemaVersion: 1, Scope: s, GeneratedAt: time.Now().UTC(), StoredGames: len(data.Games), PlayerRows: len(data.Players), MissingImportDates: []string{}, Issues: []Issue{}, Limitations: []string{"Checks stored records only; cannot prove ESPN returned every scheduled game.", "Player history contains box-score participants, not complete rosters.", "Export contains outcomes and post-game statistics; use only earlier games when building predictive features."}}
+	r := Report{SchemaVersion: 2, Warnings: []Issue{}, Scope: s, GeneratedAt: time.Now().UTC(), StoredGames: len(data.Games), PlayerRows: len(data.Players), MissingImportDates: []string{}, Issues: []Issue{}, Limitations: []string{"Checks stored records only; cannot prove ESPN returned every scheduled game.", "Player history contains box-score participants, not complete rosters.", "Export contains outcomes and post-game statistics; use only earlier games when building predictive features."}}
 	if len(data.Games) == 0 {
 		r.Issues = append(r.Issues, Issue{"no_games", "No games stored for the requested season and season type."})
 	}
@@ -107,10 +109,21 @@ func Audit(s Scope, data Snapshot) Report {
 			r.Issues = append(r.Issues, Issue{"invalid_player_stats", p.GameID + "/" + p.PlayerID + "/" + p.Category})
 			continue
 		}
-		for _, value := range stats {
+
+		keys := make([]string, 0, len(stats))
+		for key := range stats {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			value := stats[key]
+			detail := p.GameID + "/" + p.PlayerID + "/" + p.Category + "/" + key
+			if s.League == "NFL" && p.Category == "passing" && key == "adjQBR" && value == "--" {
+				r.Warnings = append(r.Warnings, Issue{"unavailable_adjusted_qbr", detail})
+				continue
+			}
 			if strings.TrimSpace(value) == "" || value == "--" || value == "NaN" || value == "Infinity" {
-				r.Issues = append(r.Issues, Issue{"missing_player_stat_value", p.GameID + "/" + p.PlayerID + "/" + p.Category})
-				break
+				r.Issues = append(r.Issues, Issue{"missing_player_stat_value", detail})
 			}
 		}
 	}

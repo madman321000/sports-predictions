@@ -106,3 +106,32 @@ func TestScopeValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestUnavailableAdjustedQBRIsWarning(t *testing.T) {
+	s, d := fixture()
+	s.League = "NFL"
+	d.Players[0].Category = "passing"
+	d.Players[0].Stats = `{"adjQBR":"--","passingYards":"0","completions/passingAttempts":"0/0"}`
+	r := Audit(s, d)
+	if !r.Ready || len(r.Warnings) != 1 || len(r.Issues) != 0 {
+		t.Fatalf("%+v", r)
+	}
+	out := filepath.Join(t.TempDir(), "export")
+	if _, err := Export(out, s, d, false); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(filepath.Join(out, "players.csv"))
+	if err != nil || len(content) == 0 {
+		t.Fatalf("CSV %v", err)
+	}
+	d.Players[0].Stats = `{"adjQBR":"--","passingYards":"--"}`
+	r = Audit(s, d)
+	if r.Ready || len(r.Warnings) != 1 || len(r.Issues) != 1 || r.Issues[0].Detail != "g1/p1/passing/passingYards" {
+		t.Fatalf("masked core metric: %+v", r)
+	}
+	s.League = "NBA"
+	d.Players[0].Stats = `{"adjQBR":"--"}`
+	if Audit(s, d).Ready {
+		t.Fatal("exception leaked to NBA")
+	}
+}
