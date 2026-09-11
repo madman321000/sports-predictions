@@ -37,7 +37,7 @@ func TestNBARejectsRedirect(t *testing.T) {
 		calls.Add(1)
 		http.Redirect(w, r, "/other", http.StatusFound)
 	})
-	if _, err := c.FetchNBATeams(context.Background()); err == nil {
+	if _, err := c.FetchTeams(context.Background(), "NBA"); err == nil {
 		t.Fatal("expected redirect error")
 	}
 	if calls.Load() != 1 {

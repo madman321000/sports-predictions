@@ -1,0 +1,254 @@
+{
+  "leagues": [
+    {
+      "abbreviation": "NBA"
+    }
+  ],
+  "events": [
+    {
+      "id": "1",
+      "season": {
+        "year": 2026,
+        "type": 2
+      },
+      "competitions": [
+        {
+          "date": "2026-01-01T23:00Z",
+          "status": {
+            "type": {
+              "name": "STATUS_SCHEDULED",
+              "state": "pre",
+              "completed": false
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "id": "1"
+              },
+              "score": "0"
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "id": "2"
+              },
+              "score": "23"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "season": {
+        "year": 2026,
+        "type": 2
+      },
+      "competitions": [
+        {
+          "date": "2026-01-01T23:00Z",
+          "status": {
+            "type": {
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "id": "1"
+              },
+              "score": "0"
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "id": "2"
+              },
+              "score": "23"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "season": {
+        "year": 2026,
+        "type": 2
+      },
+      "competitions": [
+        {
+          "date": "2026-01-01T23:00Z",
+          "status": {
+            "type": {
+              "name": "STATUS_POSTPONED",
+              "state": "pre",
+              "completed": false
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "id": "1"
+              },
+              "score": "0"
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "id": "2"
+              },
+              "score": "23"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "season": {
+        "year": 2026,
+        "type": 2
+      },
+      "competitions": [
+        {
+          "date": "2026-01-01T23:00Z",
+          "status": {
+            "type": {
+              "name": "STATUS_CANCELED",
+              "state": "post",
+              "completed": false
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "id": "1"
+              },
+              "score": "0"
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "id": "2"
+              },
+              "score": "23"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "season": {
+        "year": 2026,
+        "type": 2
+      },
+      "competitions": [
+        {
+          "date": "2026-01-01T23:00Z",
+          "status": {
+            "type": {
+              "name": "STATUS_IN_PROGRESS",
+              "state": "in",
+              "completed": false
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "id": "1"
+              },
+              "score": "0"
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "id": "2"
+              },
+              "score": "23"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "6",
+      "season": {
+        "year": 2026,
+        "type": 2
+      },
+      "competitions": [
+        {
+          "date": "2026-01-01T23:00Z",
+          "status": {
+            "type": {
+              "name": "STATUS_SUSPENDED",
+              "state": "in",
+              "completed": false
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "id": "1"
+              },
+              "score": "0"
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "id": "2"
+              },
+              "score": "23"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "7",
+      "season": {
+        "year": 2026,
+        "type": 2
+      },
+      "competitions": [
+        {
+          "date": "2026-01-01T23:00Z",
+          "status": {
+            "type": {
+              "name": "STATUS_DELAYED",
+              "state": "pre",
+              "completed": false
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "id": "1"
+              },
+              "score": "0"
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "id": "2"
+              },
+              "score": "23"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

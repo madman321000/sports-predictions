@@ -9,16 +9,20 @@ import (
 	"github.com/madman321000/sports-predictions/internal/team"
 )
 
-// FetchNBATeams fetches the team list once; no per-team requests or polling.
-func (c *Client) FetchNBATeams(ctx context.Context) ([]team.Team, error) {
-	body, err := c.get(ctx, "/apis/site/v2/sports/basketball/nba/teams?limit=100")
+// FetchTeams fetches the team list once; no per-team requests or polling.
+func (c *Client) FetchTeams(ctx context.Context, league string) ([]team.Team, error) {
+	path, err := leaguePath(league)
 	if err != nil {
 		return nil, err
 	}
-	return decodeTeams(body)
+	body, err := c.get(ctx, path+"/teams?limit=100")
+	if err != nil {
+		return nil, err
+	}
+	return decodeTeams(body, league)
 }
 
-func decodeTeams(body []byte) ([]team.Team, error) {
+func decodeTeams(body []byte, abbreviation string) ([]team.Team, error) {
 	var response struct {
 		Sports []struct {
 			Leagues []struct {
@@ -40,7 +44,7 @@ func decodeTeams(body []byte) ([]team.Team, error) {
 	seen := make(map[string]bool)
 	for _, sport := range response.Sports {
 		for _, league := range sport.Leagues {
-			if league.Abbreviation != "NBA" {
+			if league.Abbreviation != abbreviation {
 				continue
 			}
 			for _, entry := range league.Teams {
@@ -57,7 +61,7 @@ func decodeTeams(body []byte) ([]team.Team, error) {
 		}
 	}
 	if len(result) == 0 {
-		return nil, fmt.Errorf("ESPN returned no NBA teams")
+		return nil, fmt.Errorf("ESPN returned no %s teams", abbreviation)
 	}
 	return result, nil
 }

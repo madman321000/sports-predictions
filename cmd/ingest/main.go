@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -28,13 +28,14 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	league := flag.String("league", "NBA", "league to import (NBA supported)")
-	interval := flag.Duration("request-interval", cfg.ESPNRequestInterval, "minimum ESPN request spacing (at least 5s)")
-	flag.Parse()
-	if *league != "NBA" || flag.NArg() != 0 {
-		return fmt.Errorf("only -league NBA is supported; no positional arguments expected")
+	options, err := parseOptions(os.Args[1:], cfg, os.Stderr)
+	if errors.Is(err, flag.ErrHelp) {
+		return nil
 	}
-	client, err := espn.NewClient(espn.Options{BaseURL: cfg.ESPNBaseURL, RequestInterval: *interval, HTTPTimeout: cfg.ESPNHTTPTimeout})
+	if err != nil {
+		return err
+	}
+	client, err := espn.NewClient(espn.Options{BaseURL: cfg.ESPNBaseURL, RequestInterval: options.interval, HTTPTimeout: cfg.ESPNHTTPTimeout})
 	if err != nil {
 		return err
 	}
@@ -51,10 +52,19 @@ func run() error {
 	}
 	defer pool.Close()
 
-	count, err := ingest.IngestNBATeams(ctx, client, postgres.NewPostgresTeamRepository(pool))
-	if err != nil {
-		return err
+	if options.resource == "teams" {
+		result, err := ingest.IngestTeams(ctx, options.league, client, postgres.NewPostgresTeamRepository(pool), options.force)
+		if err != nil {
+			return err
+		}
+		if result.Skipped {
+			log.Printf("skipped %s teams: complete import already stored", options.league)
+		} else {
+			log.Printf("imported %d %s teams from ESPN", result.TeamsProcessed, options.league)
+		}
+		return nil
 	}
-	log.Printf("imported %d NBA teams from ESPN", count)
-	return nil
+	result, err := ingest.IngestGames(ctx, client, postgres.NewPostgresGameRepository(pool), options.games)
+	log.Printf("processed %d %s game records across %d committed dates; skipped %d complete dates", result.GamesProcessed, options.league, result.DatesProcessed, result.DatesSkipped)
+	return err
 }

@@ -51,6 +51,20 @@ func NewClient(options Options) (*Client, error) {
 
 // get executes a paced GET with the shared retry policy.
 func (c *Client) get(ctx context.Context, path string) ([]byte, error) {
+	response, err := c.getSnapshot(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	return response.body, nil
+}
+
+type snapshot struct {
+	body       []byte
+	observedAt time.Time
+}
+
+// Capture observation time while holding the gate, before another request starts.
+func (c *Client) getSnapshot(ctx context.Context, path string) (*snapshot, error) {
 	if err := c.acquire(ctx); err != nil {
 		return nil, err
 	}
@@ -93,7 +107,7 @@ func (c *Client) get(ctx context.Context, path string) ([]byte, error) {
 		if len(body) > maxBody {
 			return nil, fmt.Errorf("ESPN response exceeds %d bytes", maxBody)
 		}
-		return body, nil
+		return &snapshot{body: body, observedAt: time.Now().UTC()}, nil
 	}
 	return nil, fmt.Errorf("ESPN retry budget exhausted")
 }

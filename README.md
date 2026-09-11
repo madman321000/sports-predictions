@@ -1,24 +1,26 @@
 # sports-predictions
 
 A Go learning project for a sports prediction platform. It seeds NBA/NFL league
-reference data and imports NBA teams from ESPN into PostgreSQL. Game schedules,
-results, and predictions are not implemented yet.
+reference data and imports NBA/NFL teams, schedules, and game results from ESPN
+into PostgreSQL. Prediction models are not implemented yet.
 
 ## Code organization
 
 - `cmd/`: configuration, dependency wiring, and command lifecycle.
 - `internal/seed/` and `internal/ingest/`: workflows and the interfaces they consume.
-- `internal/league/` and `internal/team/`: shared application types.
+- `internal/league/`, `internal/team/`, and `internal/game/`: shared application types.
 - `internal/postgres/`: repositories and SQL (`PostgresLeagueRepository` and
-  `PostgresTeamRepository`).
+  `PostgresTeamRepository`, plus `PostgresGameRepository`).
 - `internal/provider/espn/`: one package split by responsibility: `client.go`
   executes HTTP requests, `rate_limit.go` handles pacing and cancellation,
   `retry.go` contains retry policy, `errors.go` defines provider errors, and
-  `teams.go` fetches and decodes NBA teams. Tests follow the same file grouping.
+  `teams.go` and `games.go` fetch and decode teams and scoreboards for both sports.
+  `leagues.go` selects the endpoint; `status.go` maps game statuses. Tests follow the same file grouping.
 
-The ingestion workflow calls `FetchNBATeams` on its source and saves the result
-through its store interface. The command wires these together through
-`IngestNBATeams`; ESPN response types stay inside the provider package.
+The workflows call `FetchTeams` or `FetchGames` on their source and persist through
+store interfaces. The command wires `IngestTeams` and `IngestGames`; ESPN response
+types stay inside the provider package. `options.go` validates CLI arguments,
+while game-date workers live in `internal/ingest/games.go`.
 
 ## Prerequisites
 
@@ -52,7 +54,7 @@ cp .env.example .env
 
 Edit `.env` for your local setup. It holds PostgreSQL image, credentials, database
 name and host port; application and test connection URLs; ESPN's base URL; request
-spacing and timeouts. Keep the connection URLs in sync when changing the database
+spacing, timeouts, and `INGEST_WORKERS` (defaults to 1). Keep the connection URLs in sync when changing the database
 settings. URLs are explicit: do not use variable interpolation in the Go settings.
 
 `.env` and local `.env.*` files are ignored by Git. Commit only the sanitized
@@ -79,13 +81,18 @@ docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v O
   < migrations/000001_create_leagues.up.sql
 docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
   < migrations/000002_create_teams.up.sql
+docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
+  < migrations/000003_create_games.up.sql
+docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
+  < migrations/000004_create_import_snapshots.up.sql
 ```
 
 This uses the PostgreSQL client inside the container; no local `psql` installation
 is required. The project does not yet have a migration runner or migration history
 table. Apply each migration once per database, in numeric order. If you already
-applied the league migration, run only `000002_create_teams.up.sql`. If both
-tables already exist, skip this step; these migrations are not designed to be rerun.
+applied migrations 000001 through 000003, run only
+`000004_create_import_snapshots.up.sql`.
+Skip migrations already applied; these migrations are not designed to be rerun.
 
 ### 5. Seed NBA and NFL
 
@@ -106,16 +113,97 @@ SQL
 
 Expect two rows: NBA and NFL.
 
-### 6. Import NBA teams from ESPN
+### 6. Import NBA and NFL teams
 
 ```sh
-go run ./cmd/ingest -league NBA
+go run ./cmd/ingest -resource teams -league NBA
+go run ./cmd/ingest -resource teams -league NFL
 ```
 
-The command checks that NBA has been seeded, fetches the team list in one request,
-and upserts the batch in a transaction. It logs the number imported and exits.
-Reruns update teams by `(provider, league_id, external_id)` without duplicates;
-missing teams are not deleted. Only NBA teams are supported in this first version.
+Each command checks that its league has been seeded and whether a complete team
+import is already stored. It skips ESPN when that import is complete; otherwise
+it fetches the entire team list in one request and saves it in a transaction. Teams are identified by provider,
+league, and external ID, so overlapping NBA/NFL IDs do not collide. Explicit refreshes update
+existing records; missing teams are not deleted. `-resource teams` remains the
+default for compatibility with the previous command.
+
+### 7. Import games for a date range
+
+Import the corresponding teams first, then run:
+
+```sh
+go run ./cmd/ingest -resource games -league NBA -from 2026-01-01 -to 2026-01-07
+go run ./cmd/ingest -resource games -league NFL -from 2025-09-07 -to 2025-09-08
+```
+
+Both dates are required and inclusive, with at most 31 days per run. They select
+ESPN scoreboard calendar dates, not a filter on UTC game start times. Start times
+are stored in UTC. NFL season year, season type, and week are preserved when
+provided; the season year is not inferred from the game's calendar year.
+
+Scheduled games have null scores, while a played score of zero is preserved.
+Imports handle in-progress, final, postponed, canceled, suspended, and delayed
+games. Unknown statuses and malformed records fail that date rather than silently
+being skipped. No-game days are valid and count as completed dates.
+
+Game upserts preserve identity and update start times, status, and scores. Each
+date is committed atomically. A missing team fails the batch with an instruction
+to import teams; no placeholder teams are created. Older fetched snapshots cannot
+overwrite newer ones when workers finish out of order. Missing games are not
+deleted, so refresh the relevant dates to collect later results or schedule changes.
+
+### Avoid repeat requests
+
+Normal imports check PostgreSQL before contacting ESPN:
+
+- **Teams:** skip the request when a successful full team import exists and every
+  team in that response is still in the database. This applies to both NBA and NFL.
+- **Games:** skip a date when a successful full scoreboard import exists and every
+  game in that response is stored as final with both scores. Zero is a valid score.
+- Dates with scheduled, live, postponed, canceled, or missing games still refresh.
+  Empty dates also refresh so a previously empty future schedule is not cached forever.
+
+ESPN returns a whole scoreboard date, so a mixed date with unfinished games still
+needs one request even when some of its games are already final. Completion is
+tracked using the requested ESPN date, not the games' UTC start dates.
+
+Migration 000004 adds persistent import records, saved in the same transaction as
+their teams or games. Existing rows from before this change require one verification
+import to establish a full response; partial rows alone cannot prove completeness.
+A failed import does not create a completion record. Deleted records invalidate
+completion and cause the next run to fetch again.
+
+Use `-force` to refresh saved teams, discover schedule changes, or collect corrected
+final scores:
+
+```sh
+go run ./cmd/ingest -resource teams -league NFL -force
+go run ./cmd/ingest -resource games -league NBA -from 2026-01-01 -to 2026-01-07 -force
+```
+
+Completed imports do not expire automatically. The CLI reports skipped teams or
+skipped dates separately from newly processed records. Rate limits still apply to
+forced requests. Concurrent processes are not deduplicated; continue to run only
+one importer process at a time.
+
+### Bounded concurrency
+
+The default is one date worker. To overlap date processing and database writes:
+
+```sh
+go run ./cmd/ingest -resource games -league NFL -from 2025-09-07 -to 2025-09-14 -workers 3
+```
+
+Set `INGEST_WORKERS` in `.env` for a persistent default (1-4), or override it with
+`-workers`. Every worker shares the same ESPN client: HTTP requests remain
+serialized and at least five seconds apart, including retries. More workers do
+not increase ESPN request throughput or bypass access restrictions.
+
+On the first error, pending workers are canceled. Dates already committed remain;
+the command reports committed dates, skipped dates, and processed game records even on failure.
+Counts are records processed, not unique inserts (a rescheduled game can appear on
+multiple dates). Rerun the same bounded range to recover. There is no persistent
+checkpoint or cross-process limiter yet; run only one importer process at a time.
 
 Set `ESPN_REQUEST_INTERVAL=10s` in `.env` for a longer delay. The optional
 `-request-interval` flag overrides that setting for a single run. The five-second
@@ -141,7 +229,8 @@ availability does not establish permission for every use of its data.
 - Other HTTP errors, network errors, and invalid response data fail without retries.
   Redirects are not followed. Requests default to a 20-second timeout (`ESPN_HTTP_TIMEOUT`); the command
   defaults to a five-minute deadline (`INGEST_TIMEOUT`) and supports cancellation with Ctrl+C.
-- There is no automatic polling or per-team fan-out. Team reference data changes
+- There is no automatic polling or per-team fan-out. Game imports use one
+  scoreboard request per selected date. Team reference data changes
   infrequently: run manually when needed, rather than on a frequent schedule.
 - The limiter is per client/process and resets on restart. Run only one importer
   at a time. Multiple machines or processes would need a shared limiter before
@@ -197,7 +286,9 @@ and drops that schema on cleanup. Existing application tables are not changed,
 and no manual migration is required for tests.
 
 Additional tests cover ESPN response validation, request pacing, retry limits,
-access restrictions, cancellation, ingestion failures, and atomic team upserts.
+access restrictions, cancellation, ingestion failures, atomic team/game upserts,
+NBA/NFL mapping, worker bounds, partial progress, stale-response protection,
+database-first request skipping, forced refreshes, and atomic import records.
 Coverage includes seed records and context forwarding, wrapped write failures and
 stopping on error, repeated seeding without duplicates, updates preserving row
 identity and creation time, timestamp refresh, and wrapped PostgreSQL errors.

@@ -19,7 +19,7 @@ func TestNBAStopsOnAccessRestrictions(t *testing.T) {
 				w.WriteHeader(status)
 			})
 			for i := 0; i < 2; i++ {
-				_, err := c.FetchNBATeams(context.Background())
+				_, err := c.FetchTeams(context.Background(), "NBA")
 				var got *HTTPError
 				if !errors.As(err, &got) || got.StatusCode != status || got.RetryAfter != "120" {
 					t.Fatalf("error = %v", err)
@@ -50,7 +50,7 @@ func TestNBARetriesAreBounded(t *testing.T) {
 				}
 				respond(w, body)
 			})
-			_, err := c.FetchNBATeams(context.Background())
+			_, err := c.FetchTeams(context.Background(), "NBA")
 			if (err != nil) != tc.wantError {
 				t.Fatalf("error = %v", err)
 			}
@@ -70,7 +70,7 @@ func TestNBARetryAfterAndCancellation(t *testing.T) {
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
-	_, err := c.FetchNBATeams(ctx)
+	_, err := c.FetchTeams(ctx, "NBA")
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("error = %v", err)
 	}
@@ -109,7 +109,7 @@ func TestNBALongOrInvalidRetryAfterStopsClient(t *testing.T) {
 				w.WriteHeader(503)
 			})
 			for i := 0; i < 2; i++ {
-				if _, err := c.FetchNBATeams(context.Background()); err == nil {
+				if _, err := c.FetchTeams(context.Background(), "NBA"); err == nil {
 					t.Fatal("expected server error")
 				}
 			}

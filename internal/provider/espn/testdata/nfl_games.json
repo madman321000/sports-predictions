@@ -1,0 +1,47 @@
+{
+  "leagues": [
+    {
+      "abbreviation": "NFL"
+    }
+  ],
+  "events": [
+    {
+      "id": "101",
+      "season": {
+        "year": 2025,
+        "type": 2
+      },
+      "competitions": [
+        {
+          "date": "2025-09-07T17:00Z",
+          "status": {
+            "type": {
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true
+            }
+          },
+          "competitors": [
+            {
+              "homeAway": "home",
+              "team": {
+                "id": "1"
+              },
+              "score": "20"
+            },
+            {
+              "homeAway": "away",
+              "team": {
+                "id": "2"
+              },
+              "score": "23"
+            }
+          ]
+        }
+      ],
+      "week": {
+        "number": 1
+      }
+    }
+  ]
+}

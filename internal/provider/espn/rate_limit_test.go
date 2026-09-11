@@ -23,7 +23,7 @@ func TestNBAPacesConcurrentCallers(t *testing.T) {
 	var wg sync.WaitGroup
 	for i := 0; i < 3; i++ {
 		wg.Go(func() {
-			if _, err := c.FetchNBATeams(context.Background()); err != nil {
+			if _, err := c.FetchTeams(context.Background(), "NBA"); err != nil {
 				t.Error(err)
 			}
 		})
@@ -46,7 +46,7 @@ func TestNBACancelWhileQueued(t *testing.T) {
 	c.gate <- struct{}{}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := c.FetchNBATeams(ctx)
+	_, err := c.FetchTeams(ctx, "NBA")
 	<-c.gate
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("error = %v", err)

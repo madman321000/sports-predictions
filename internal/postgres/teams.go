@@ -25,19 +25,23 @@ func (r *PostgresTeamRepository) LeagueID(ctx context.Context, abbreviation stri
 
 func (r *PostgresTeamRepository) UpsertTeams(ctx context.Context, leagueID int64, provider string, teams []team.Team) error {
 	return pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
-		for _, t := range teams {
-			if t.ExternalID == "" || t.Name == "" || t.Abbreviation == "" || provider == "" {
-				return fmt.Errorf("team is missing required fields")
-			}
-			_, err := tx.Exec(ctx, `INSERT INTO teams (league_id, provider, external_id, name, abbreviation)
+		return upsertTeams(ctx, tx, leagueID, provider, teams)
+	})
+}
+
+func upsertTeams(ctx context.Context, tx pgx.Tx, leagueID int64, provider string, teams []team.Team) error {
+	for _, t := range teams {
+		if t.ExternalID == "" || t.Name == "" || t.Abbreviation == "" || provider == "" {
+			return fmt.Errorf("team is missing required fields")
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO teams (league_id, provider, external_id, name, abbreviation)
     VALUES ($1, $2, $3, $4, $5)
     ON CONFLICT (provider, league_id, external_id) DO UPDATE
     SET name = EXCLUDED.name, abbreviation = EXCLUDED.abbreviation, updated_at = NOW()`,
-				leagueID, provider, t.ExternalID, t.Name, t.Abbreviation)
-			if err != nil {
-				return fmt.Errorf("upsert team %q: %w", t.ExternalID, err)
-			}
+			leagueID, provider, t.ExternalID, t.Name, t.Abbreviation)
+		if err != nil {
+			return fmt.Errorf("upsert team %q: %w", t.ExternalID, err)
 		}
-		return nil
-	})
+	}
+	return nil
 }
