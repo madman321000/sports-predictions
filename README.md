@@ -213,6 +213,11 @@ These are **basic player profiles and box-score participation history**, not a
 complete historical roster or biography dataset. In particular, NFL box scores
 omit players without recorded statistics. Missing fields and DNP values are not
 zero statistics. Raw values preserve formats such as `17/32` and `--`.
+Statless DNP entries without an ESPN player ID are excluded and counted in the
+import summary; no identity is guessed from a short name. Identified DNP entries
+remain stored. A row with statistics or participation still requires an ID and
+name, and conflicting duplicate categories still fail the import. The excluded
+DNP count describes the current run and is not persisted as a roster record.
 
 Season totals cover only imported games; they are not independently fetched ESPN
 season totals. Importing seven days of games produces seven days of player data,
@@ -411,12 +416,19 @@ Each export creates a **new** directory and refuses to overwrite an existing one
   `stats_json`. Parse this JSON column to retain provider metric names and original
   values such as `17/32`; NFL players can appear in multiple categories. Only
   intact completed game imports contribute player rows.
-- `report.json`: schema version, scope, timestamp, counts, findings and limitations.
+- `report.json`: schema version, scope, timestamp, counts, blocking issues, warnings and limitations.
   Written last, its presence marks a completed export. A failed export cleans up
   its newly created directory. CSV rows are ordered by game time/ID, then player
   ID/category, and CSV quoting preserves commas and quotes in names and JSON.
 
-By default, quality findings prevent export. For an intentional partial dataset,
+Report schema version 2 separates blocking `issues` from non-blocking `warnings`.
+NFL passing `adjQBR: "--"` is an unavailable optional derived rating: it produces
+an `unavailable_adjusted_qbr` warning and remains unchanged in exported raw stats.
+Missing core stats still block export, even when the same row has a QBR warning.
+Metric-level findings include the game, player, category and metric key.
+No migration or NFL reimport is needed to apply this reporting change.
+
+By default, blocking quality issues prevent export. For an intentional partial dataset,
 add `-allow-incomplete`; the report keeps its findings and
 `ready_for_export: false`. Non-final games and partial player imports remain
 excluded. Missing CSV values are empty, never converted to zero. The `exports/`

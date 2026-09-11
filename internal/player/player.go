@@ -21,6 +21,8 @@ type Line struct {
 }
 
 type BoxScore struct {
-	ObservedAt time.Time
-	Lines      []Line
+	// UnidentifiedDNP counts statless DNP entries excluded because no provider ID exists.
+	UnidentifiedDNP int
+	ObservedAt      time.Time
+	Lines           []Line
 }
