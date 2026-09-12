@@ -35,6 +35,8 @@ type playerSummary struct {
 						ID, DisplayName, Jersey string
 						Position                struct{ Abbreviation string }
 					}
+					Active     *bool
+					Reason     string
 					DidNotPlay bool
 					Starter    *bool
 					Stats      []string
@@ -103,7 +105,9 @@ func decodePlayerGame(body []byte, league string, game player.GameRef) (player.B
 			}
 			for _, row := range category.Athletes {
 				a := row.Athlete
-				if a.ID == "" && row.DidNotPlay && len(row.Stats) == 0 {
+				statlessDNP := row.DidNotPlay && len(row.Stats) == 0
+				inactivePlaceholder := league == "NBA" && row.Active != nil && !*row.Active && row.Starter != nil && !*row.Starter && row.Reason == "COACH'S DECISION" && placeholderStats(category.Keys, row.Stats)
+				if a.ID == "" && (statlessDNP || inactivePlaceholder) {
 					result.UnidentifiedDNP++
 					continue
 				}
@@ -144,4 +148,25 @@ func decodePlayerGame(body []byte, league string, game player.GameRef) (player.B
 		}
 	}
 	return result, nil
+}
+
+// placeholderStats requires absent playing time and only zero-valued placeholders.
+// Any reported playing time or nonzero/unrecognized statistic remains an error
+// when the provider has supplied no player ID.
+func placeholderStats(keys, values []string) bool {
+	if len(keys) != len(values) {
+		return false
+	}
+	missingMinutes := false
+	for i, key := range keys {
+		if key == "minutes" {
+			if values[i] != "--" {
+				return false
+			}
+			missingMinutes = true
+		} else if values[i] != "0" && values[i] != "0-0" && values[i] != "0/0" {
+			return false
+		}
+	}
+	return missingMinutes
 }

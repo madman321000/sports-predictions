@@ -67,7 +67,7 @@ func run() error {
 	}
 	if options.resource == "players" {
 		result, err := ingest.IngestPlayers(ctx, client, postgres.NewPostgresPlayerRepository(pool), options.players)
-		log.Printf("imported %d player statistic lines across %d games; skipped %d complete games; excluded %d statless DNP entries without player IDs", result.LinesProcessed, result.GamesProcessed, result.GamesSkipped, result.UnidentifiedDNP)
+		log.Printf("imported %d player statistic lines across %d games; skipped %d complete games; excluded %d nonparticipating entries without player IDs", result.LinesProcessed, result.GamesProcessed, result.GamesSkipped, result.UnidentifiedDNP)
 		return err
 	}
 	total := (options.games.To.Unix()-options.games.From.Unix())/86400 + 1

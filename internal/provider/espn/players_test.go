@@ -136,3 +136,67 @@ func TestUnidentifiedDNP(t *testing.T) {
 		t.Fatal("unidentified row with stats accepted")
 	}
 }
+
+func TestInactiveUnidentifiedPlaceholder(t *testing.T) {
+	body, err := os.ReadFile("testdata/nba_players.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var d playerSummary
+	if err := json.Unmarshal(body, &d); err != nil {
+		t.Fatal(err)
+	}
+	c := &d.Boxscore.Players[0].Statistics[0]
+	c.Keys = append(c.Keys, "minutes")
+	for i := range c.Athletes {
+		if len(c.Athletes[i].Stats) > 0 {
+			c.Athletes[i].Stats = append(c.Athletes[i].Stats, "10")
+		}
+	}
+	row := c.Athletes[0]
+	no := false
+	row.Athlete.ID = ""
+	row.Athlete.DisplayName = ""
+	row.Active = &no
+	row.Starter = &no
+	row.Reason = "COACH'S DECISION"
+	row.DidNotPlay = false
+	row.Stats = []string{"0", "0-0", "--"}
+	c.Athletes = append(c.Athletes, row)
+	g := player.GameRef{ExternalID: "g1", HomeTeamExternalID: "1", AwayTeamExternalID: "2", Season: 2026, SeasonType: 2}
+	decode := func() error {
+		t.Helper()
+		b, e := json.Marshal(d)
+		if e != nil {
+			t.Fatal(e)
+		}
+		box, e := decodePlayerGame(b, "NBA", g)
+		if e == nil && (box.UnidentifiedDNP != 1 || len(box.Lines) != 4) {
+			t.Fatalf("%+v", box)
+		}
+		return e
+	}
+	if err := decode(); err != nil {
+		t.Fatal(err)
+	}
+	target := &c.Athletes[len(c.Athletes)-1]
+	target.Stats[0] = "2"
+	if decode() == nil {
+		t.Fatal("discarded scoring player")
+	}
+	target.Stats[0] = "0"
+	target.Stats[2] = "0"
+	if decode() == nil {
+		t.Fatal("discarded player with recorded minutes")
+	}
+	target.Stats[2] = "--"
+	target.Active = nil
+	if decode() == nil {
+		t.Fatal("discarded player without explicit inactive flag")
+	}
+	target.Active = &no
+	target.Reason = ""
+	if decode() == nil {
+		t.Fatal("discarded player without coach decision")
+	}
+}
