@@ -106,8 +106,8 @@ func decodePlayerGame(body []byte, league string, game player.GameRef) (player.B
 			for _, row := range category.Athletes {
 				a := row.Athlete
 				statlessDNP := row.DidNotPlay && len(row.Stats) == 0
-				inactivePlaceholder := league == "NBA" && row.Active != nil && !*row.Active && row.Starter != nil && !*row.Starter && row.Reason == "COACH'S DECISION" && placeholderStats(category.Keys, row.Stats)
-				if a.ID == "" && (statlessDNP || inactivePlaceholder) {
+				nonparticipatingPlaceholder := league == "NBA" && row.Starter != nil && !*row.Starter && row.Reason == "COACH'S DECISION" && placeholderStats(category.Keys, row.Stats)
+				if a.ID == "" && (statlessDNP || nonparticipatingPlaceholder) {
 					result.UnidentifiedDNP++
 					continue
 				}

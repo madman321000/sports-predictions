@@ -218,9 +218,11 @@ import summary; no identity is guessed from a short name. Identified DNP entries
 remain stored. A row with statistics or participation still requires an ID and
 name, and conflicting duplicate categories still fail the import. One narrow NBA
 exception handles contradictory provider placeholders: no player ID, explicitly
-inactive and not a starter, reason `COACH'S DECISION`, minutes `--`, and every
+not a starter, reason `COACH'S DECISION`, minutes `--`, and every
 other statistic exactly `0`, `0-0`, or `0/0`. These are counted as excluded
-nonparticipating entries even when ESPN sets didNotPlay to false. Any recorded
+nonparticipating entries even when ESPN sets didNotPlay to false. The `active`
+flag is not used to infer participation: the provider varies it on otherwise
+identical missing-time placeholders. Any recorded
 minutes or nonzero/unrecognized statistic still fails validation. The excluded
 DNP count describes the current run and is not persisted as a roster record.
 

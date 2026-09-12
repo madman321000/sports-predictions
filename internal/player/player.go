@@ -22,7 +22,7 @@ type Line struct {
 
 type BoxScore struct {
 	// UnidentifiedDNP counts excluded nonparticipating entries with no provider ID,
-	// including inactive coach-decision placeholders with missing minutes and zero stats.
+	// including coach-decision placeholders with missing minutes and zero stats.
 	UnidentifiedDNP int
 	ObservedAt      time.Time
 	Lines           []Line
