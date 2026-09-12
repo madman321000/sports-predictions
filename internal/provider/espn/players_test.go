@@ -137,7 +137,7 @@ func TestUnidentifiedDNP(t *testing.T) {
 	}
 }
 
-func TestInactiveUnidentifiedPlaceholder(t *testing.T) {
+func TestUnidentifiedCoachDecisionPlaceholder(t *testing.T) {
 	body, err := os.ReadFile("testdata/nba_players.json")
 	if err != nil {
 		t.Fatal(err)
@@ -190,11 +190,19 @@ func TestInactiveUnidentifiedPlaceholder(t *testing.T) {
 		t.Fatal("discarded player with recorded minutes")
 	}
 	target.Stats[2] = "--"
-	target.Active = nil
-	if decode() == nil {
-		t.Fatal("discarded player without explicit inactive flag")
+	// ESPN changes active independently of these missing-time zero-stat entries.
+	yes := true
+	for _, active := range []*bool{nil, &yes, &no} {
+		target.Active = active
+		if err := decode(); err != nil {
+			t.Fatalf("active=%v: %v", active, err)
+		}
 	}
-	target.Active = &no
+	target.Starter = &yes
+	if decode() == nil {
+		t.Fatal("discarded unidentified starter")
+	}
+	target.Starter = &no
 	target.Reason = ""
 	if decode() == nil {
 		t.Fatal("discarded player without coach decision")
