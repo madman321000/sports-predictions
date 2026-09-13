@@ -77,7 +77,7 @@ type Report struct {
 }
 
 func Audit(s Scope, data Snapshot) Report {
-	r := Report{SchemaVersion: 2, Warnings: []Issue{}, Scope: s, GeneratedAt: time.Now().UTC(), StoredGames: len(data.Games), PlayerRows: len(data.Players), MissingImportDates: []string{}, Issues: []Issue{}, Limitations: []string{"Checks stored records only; cannot prove ESPN returned every scheduled game.", "Player history contains box-score participants, not complete rosters.", "Export contains outcomes and post-game statistics; use only earlier games when building predictive features."}}
+	r := Report{SchemaVersion: 3, Warnings: []Issue{}, Scope: s, GeneratedAt: time.Now().UTC(), StoredGames: len(data.Games), PlayerRows: len(data.Players), MissingImportDates: []string{}, Issues: []Issue{}, Limitations: []string{"Checks stored records only; cannot prove ESPN returned every scheduled game.", "Player history contains box-score participants, not complete rosters.", "Export contains outcomes and post-game statistics; use only earlier games when building predictive features."}}
 	if len(data.Games) == 0 {
 		r.Issues = append(r.Issues, Issue{"no_games", "No games stored for the requested season and season type."})
 	}
@@ -86,7 +86,11 @@ func Audit(s Scope, data Snapshot) Report {
 	}
 	for _, g := range data.Games {
 		if g.Status != "final" {
-			r.Issues = append(r.Issues, Issue{"non_final_game", g.ID + ": " + g.Status})
+			if id := replacement(s, g, data.Games); id != "" {
+				r.Warnings = append(r.Warnings, Issue{"resolved_postponement", g.ID + " -> " + id})
+			} else {
+				r.Issues = append(r.Issues, Issue{"non_final_game", g.ID + ": " + g.Status})
+			}
 			continue
 		}
 		r.FinalGames++
@@ -107,6 +111,11 @@ func Audit(s Scope, data Snapshot) Report {
 		var stats map[string]string
 		if err := json.Unmarshal([]byte(p.Stats), &stats); err != nil || len(stats) == 0 {
 			r.Issues = append(r.Issues, Issue{"invalid_player_stats", p.GameID + "/" + p.PlayerID + "/" + p.Category})
+			continue
+		}
+
+		if Participation(s.League, p) == "uncertain" {
+			r.Warnings = append(r.Warnings, Issue{"uncertain_participation", p.GameID + "/" + p.PlayerID + "/" + p.Category + "/minutes"})
 			continue
 		}
 
