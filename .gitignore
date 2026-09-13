@@ -39,3 +39,11 @@ coverage.txt
 
 # Local data exports
 /exports/
+
+# Offline Python modeling
+modeling/.venv/
+modeling/runs/
+__pycache__/
+*.pyc
+.coverage
+modeling-coverage.xml
