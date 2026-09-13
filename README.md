@@ -599,3 +599,12 @@ not independent verification of playing time. Exclude uncertain rows when counti
 appearances or calculating per-appearance averages. Raw database season-total
 `games_with_metric` counts remain counts of recorded metrics, not verified
 appearances; use the exported participation flag for modeling.
+
+## Train the first offline models
+
+After exporting each league with schema version 3, follow
+[the modeling setup and run instructions](modeling/README.md). The Python baseline
+validates the exports, builds historical team features, compares logistic regression
+with a constant home-win probability, and saves chronological evaluation results.
+No additional migration or ingestion is needed. NBA and NFL are separate runs;
+player features are reserved for a later iteration.
