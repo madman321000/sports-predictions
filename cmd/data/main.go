@@ -52,7 +52,7 @@ func run() error {
 	}
 	report := dataset.Audit(o.scope, data)
 	if o.action == "export" {
-		report, err = dataset.Export(o.out, o.scope, data, o.allow)
+		report, err = dataset.Export(o.out, o.scope, data, dataset.ExportOptions{AllowIncomplete: o.allow, Overwrite: o.overwrite})
 	}
 	encoder := json.NewEncoder(os.Stdout)
 	encoder.SetIndent("", "  ")

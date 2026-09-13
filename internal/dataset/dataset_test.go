@@ -60,7 +60,7 @@ func TestAudit(t *testing.T) {
 func TestExport(t *testing.T) {
 	s, d := fixture()
 	path := filepath.Join(t.TempDir(), "export")
-	if _, err := Export(path, s, d, false); err != nil {
+	if _, err := Export(path, s, d, ExportOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	f, err := os.Open(filepath.Join(path, "players.csv"))
@@ -79,7 +79,7 @@ func TestExport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Export(path, s, d, false); err == nil {
+	if _, err := Export(path, s, d, ExportOptions{}); err == nil {
 		t.Fatal("overwrote existing directory")
 	}
 	after, err := os.ReadFile(filepath.Join(path, "games.csv"))
@@ -88,13 +88,13 @@ func TestExport(t *testing.T) {
 	}
 	d.Games[0].PlayersComplete = false
 	incomplete := filepath.Join(t.TempDir(), "partial")
-	if _, err := Export(incomplete, s, d, false); err == nil {
+	if _, err := Export(incomplete, s, d, ExportOptions{}); err == nil {
 		t.Fatal("incomplete export accepted")
 	}
 	if _, err := os.Stat(incomplete); !os.IsNotExist(err) {
 		t.Fatal("failed export left output")
 	}
-	r, err := Export(incomplete, s, d, true)
+	r, err := Export(incomplete, s, d, ExportOptions{AllowIncomplete: true})
 	if err != nil || r.Ready {
 		t.Fatalf("explicit incomplete %+v %v", r, err)
 	}
@@ -117,7 +117,7 @@ func TestUnavailableAdjustedQBRIsWarning(t *testing.T) {
 		t.Fatalf("%+v", r)
 	}
 	out := filepath.Join(t.TempDir(), "export")
-	if _, err := Export(out, s, d, false); err != nil {
+	if _, err := Export(out, s, d, ExportOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	content, err := os.ReadFile(filepath.Join(out, "players.csv"))

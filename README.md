@@ -414,7 +414,28 @@ go run ./cmd/data -action export -league NFL -season 2025 \
   -from 2025-09-01 -to 2026-02-28 -out exports/nfl-2025
 ```
 
-Each export creates a **new** directory and refuses to overwrite an existing one:
+Each export creates a new directory by default. Add `-overwrite` to refresh an
+existing export for the same league, season and season type:
+
+```bash
+go run ./cmd/data -action export -league NFL -season 2025 \
+  -from 2025-09-01 -to 2026-02-28 -out exports/nfl-2025 -overwrite
+
+go run ./cmd/data -action export -league NBA -season 2026 \
+  -from 2025-10-21 -to 2026-06-30 -out exports/nba-2026 -overwrite
+```
+
+Quality checks still apply. The command stages all files before replacing the
+previous export; validation or staging failures leave it intact. Only directories
+containing exactly the three regular export files and a valid report for the
+same season may be replaced. Symlinks and unrelated files are rejected. Concurrent
+exports to the same destination are rejected using a sibling `.lock` file.
+Replacement uses a temporary backup and restores it if publishing fails. A process
+or machine crash during replacement may leave a `.export-backup-*` directory and
+lock file beside the destination; inspect and restore that backup before removing
+the stale lock and retrying. This is not a filesystem transaction across crashes.
+
+The directory contains:
 
 - `games.csv`: one row per stored final game, ESPN game/team IDs, scope, UTC start
   time, scores and a player-import-complete flag.
@@ -428,7 +449,7 @@ Each export creates a **new** directory and refuses to overwrite an existing one
   its newly created directory. CSV rows are ordered by game time/ID, then player
   ID/category, and CSV quoting preserves commas and quotes in names and JSON.
 
-Report schema version 2 separates blocking `issues` from non-blocking `warnings`.
+Report schema version 3 retains the separation of blocking `issues` from non-blocking `warnings`.
 NFL passing `adjQBR: "--"` is an unavailable optional derived rating: it produces
 an `unavailable_adjusted_qbr` warning and remains unchanged in exported raw stats.
 Missing core stats still block export, even when the same row has a QBR warning.
@@ -545,3 +566,36 @@ go test -race -count=1 -timeout=5m -covermode=atomic -coverpkg=./... -coverprofi
 go tool cover -func=coverage.out
 go tool cover -html=coverage.out -o coverage.html
 ```
+
+### NBA quality reconciliation
+
+No migration or reimport is required for these reporting and export changes.
+The quality command recognizes four explicitly reconciled ESPN replacements in
+the NBA 2026 regular season:
+
+| Postponed game | Replacement final game |
+| --- | --- |
+| 401810384 | 401850920 |
+| 401810499 | 401857824 |
+| 401810506 | 401858693 |
+| 401810507 | 401858694 |
+
+These mappings use the NBA's [Heat–Bulls announcement](https://pr.nba.com/heat-bulls-schedule-adjustments/),
+[Warriors–Timberwolves announcement](https://www.nba.com/news/warriors-timberwolves-game-postponed),
+and [weather rescheduling announcement](https://www.nba.com/news/nba-schedule-adjustments-weather-2026)
+together with the stored ESPN IDs. The replacement must be present in the same
+season snapshot, have the same home and away teams, occur later, be final with
+scores, and have a complete player import. Only then does the postponed record
+produce a `resolved_postponement` warning. Other unresolved games still block
+export. The original records are preserved; only final games enter `games.csv`.
+
+NBA general-stat rows with explicitly false `starter`, unavailable (`--`) minutes,
+and the complete expected set of otherwise zero statistics produce an
+`uncertain_participation` warning. Other missing or nonzero statistics retain the
+existing blocking checks. This does not infer DNP or replace missing minutes with
+zero. Schema version 3 appends `participation_status` to `players.csv`, with values
+`reported`, `did_not_play`, or `uncertain`. `reported` means no special classification,
+not independent verification of playing time. Exclude uncertain rows when counting
+appearances or calculating per-appearance averages. Raw database season-total
+`games_with_metric` counts remain counts of recorded metrics, not verified
+appearances; use the exported participation flag for modeling.

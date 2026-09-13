@@ -11,6 +11,7 @@ type options struct {
 	scope       dataset.Scope
 	action, out string
 	allow       bool
+	overwrite   bool
 }
 
 func parseOptions(args []string, out io.Writer) (options, error) {
@@ -23,8 +24,9 @@ func parseOptions(args []string, out io.Writer) (options, error) {
 	f.IntVar(&o.scope.SeasonType, "season-type", 2, "2 regular season, 3 postseason")
 	f.StringVar(&o.scope.From, "from", "", "first expected ESPN import date, YYYY-MM-DD")
 	f.StringVar(&o.scope.To, "to", "", "last expected ESPN import date, YYYY-MM-DD")
-	f.StringVar(&o.out, "out", "", "new export directory (export only)")
+	f.StringVar(&o.out, "out", "", "export directory (export only)")
 	f.BoolVar(&o.allow, "allow-incomplete", false, "explicitly export despite quality findings")
+	f.BoolVar(&o.overwrite, "overwrite", false, "replace an existing export for the same season")
 	if err := f.Parse(args); err != nil {
 		return o, err
 	}
@@ -40,8 +42,8 @@ func parseOptions(args []string, out io.Writer) (options, error) {
 	if o.action == "export" && o.out == "" {
 		return o, fmt.Errorf("export requires -out")
 	}
-	if o.action == "quality" && (o.out != "" || o.allow) {
-		return o, fmt.Errorf("out and allow-incomplete only apply to export")
+	if o.action == "quality" && (o.out != "" || o.allow || o.overwrite) {
+		return o, fmt.Errorf("out, overwrite and allow-incomplete only apply to export")
 	}
 	return o, nil
 }
