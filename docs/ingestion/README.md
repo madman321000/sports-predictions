@@ -45,7 +45,7 @@ Unknown teams in other games still fail the date rather than being silently
 skipped or added as fake league teams. Mixed dates save only included games in
 the date import record. Exhibition-only dates record an empty successful import;
 like other empty dates, they are fetched again on a later run and do not create
-missing-game findings in the quality report. 
+missing-game findings in the quality report.
 
 Scheduled games have null scores, while a played score of zero is preserved.
 Imports handle in-progress, final, postponed, canceled, suspended, and delayed

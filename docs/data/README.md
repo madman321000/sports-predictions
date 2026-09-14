@@ -12,6 +12,9 @@ and players. It makes no ESPN requests and reads `DATABASE_URL` from your existi
 `.env`; ESPN settings are not required. Queries use a read-only, repeatable
 database snapshot.
 
+Use the same date range you imported. If your NBA backfill began on `2025-10-21`,
+use that date instead of `2025-10-01` in the quality and export commands below.
+
 ```sh
 go run ./cmd/data -action quality -league NBA -season 2026 \
   -from 2025-10-01 -to 2026-06-30
@@ -37,8 +40,6 @@ errors remain on stderr. The report lists:
 
 `-season-type 2` (regular season) is the default. Run separately with
 `-season-type 3` for postseason. **Season and season type select the dataset.**
-Use the same date range you imported. If your NBA backfill began on `2025-10-21`, use that date instead of `2025-10-01` in every command below.
-
 The date flags only describe the ESPN calendar dates you expect to have imported;
 they do not filter exported games by UTC start time. Use the full backfill range
 for a season audit. A stored date proves a fetch succeeded, not that ESPN supplied
