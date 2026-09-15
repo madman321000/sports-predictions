@@ -110,3 +110,9 @@ Tests cover malformed exports, counts/references, future/target/same-day leakage
 chronological splits, training-only scaling, test-independent model selection,
 NFL ties, insufficient history, and end-to-end runs with model reload for both
 leagues. Fixtures are synthetic; CI does not train against your local season data.
+
+## Next: inspect stability and feature contributions
+
+Use the [evaluation guide](evaluation/README.md) for expanding-window comparisons,
+calibration, date-level performance and confidently wrong predictions. It writes
+separate analysis directories and keeps the original baseline runs intact.
