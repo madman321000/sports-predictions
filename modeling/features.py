@@ -22,6 +22,7 @@ class Example:
     date: str
     values: list[float]
     target: int
+    week: int | None = None
 
 
 def team_features(history, date):
@@ -63,6 +64,7 @@ def build_examples(games):
                     date.isoformat(),
                     [h - a for h, a in zip(home, away)],
                     int(game.home_score > game.away_score),
+                    game.week,
                 )
             )
         # Updating after the entire date prevents same-day results leaking.

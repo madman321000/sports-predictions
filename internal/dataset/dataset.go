@@ -44,6 +44,7 @@ type Game struct {
 	Home, Away, Status   string
 	HomeScore, AwayScore *int
 	PlayersComplete      bool
+	Week                 *int
 }
 type Player struct {
 	GameID, PlayerID, Name, Team, Category, Position, Jersey string
@@ -77,7 +78,7 @@ type Report struct {
 }
 
 func Audit(s Scope, data Snapshot) Report {
-	r := Report{SchemaVersion: 3, Warnings: []Issue{}, Scope: s, GeneratedAt: time.Now().UTC(), StoredGames: len(data.Games), PlayerRows: len(data.Players), MissingImportDates: []string{}, Issues: []Issue{}, Limitations: []string{"Checks stored records only; cannot prove ESPN returned every scheduled game.", "Player history contains box-score participants, not complete rosters.", "Export contains outcomes and post-game statistics; use only earlier games when building predictive features."}}
+	r := Report{SchemaVersion: 4, Warnings: []Issue{}, Scope: s, GeneratedAt: time.Now().UTC(), StoredGames: len(data.Games), PlayerRows: len(data.Players), MissingImportDates: []string{}, Issues: []Issue{}, Limitations: []string{"Checks stored records only; cannot prove ESPN returned every scheduled game.", "Player history contains box-score participants, not complete rosters.", "Export contains outcomes and post-game statistics; use only earlier games when building predictive features."}}
 	if len(data.Games) == 0 {
 		r.Issues = append(r.Issues, Issue{"no_games", "No games stored for the requested season and season type."})
 	}

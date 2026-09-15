@@ -135,3 +135,26 @@ func TestUnavailableAdjustedQBRIsWarning(t *testing.T) {
 		t.Fatal("exception leaked to NBA")
 	}
 }
+
+func TestExportWeek(t *testing.T) {
+	s, d := fixture()
+	week := 7
+	d.Games[0].Week = &week
+	path := filepath.Join(t.TempDir(), "export")
+	report, err := Export(path, s, d, ExportOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.SchemaVersion != 4 {
+		t.Fatal("expected schema v4")
+	}
+	f, err := os.Open(filepath.Join(path, "games.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := csv.NewReader(f).ReadAll()
+	_ = f.Close()
+	if err != nil || rows[0][10] != "week" || rows[1][10] != "7" {
+		t.Fatalf("week export: %v %v", rows, err)
+	}
+}

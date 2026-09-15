@@ -21,6 +21,7 @@ from sklearn.preprocessing import StandardScaler
 
 from .data import load_export
 from .features import FEATURES, build_examples, split_examples
+from .protocol import PROTOCOL
 
 
 def metrics(rows, probabilities):
@@ -40,7 +41,7 @@ def fit_baseline(splits):
     rate = sum(r.target for r in train) / len(train)
     candidates, fitted = [], []
     # Fixed grid, selected by validation log loss. Never fit on validation/test.
-    for c in (0.01, 0.1, 1.0, 10.0):
+    for c in PROTOCOL["C_grid"]:
         model = make_pipeline(
             StandardScaler(), LogisticRegression(C=c, max_iter=2000, random_state=0)
         )
@@ -95,7 +96,13 @@ def run(directory, output):
             name: hashlib.sha256(
                 Path(__file__).with_name(name).read_bytes()
             ).hexdigest()
-            for name in ("data.py", "features.py", "train.py", "requirements.txt")
+            for name in (
+                "data.py",
+                "features.py",
+                "train.py",
+                "protocol.py",
+                "requirements.txt",
+            )
         },
         "random_state": 0,
         "feature_names": FEATURES,

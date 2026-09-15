@@ -42,10 +42,10 @@ func Export(path string, scope Scope, data Snapshot, options ExportOptions) (Rep
 		return report, err
 	}
 	defer func() { _ = os.RemoveAll(path) }()
-	games := [][]string{{"game_id", "league", "season", "season_type", "starts_at_utc", "home_team_id", "away_team_id", "home_score", "away_score", "player_import_complete"}}
+	games := [][]string{{"game_id", "league", "season", "season_type", "starts_at_utc", "home_team_id", "away_team_id", "home_score", "away_score", "player_import_complete", "week"}}
 	for _, g := range data.Games {
 		if g.Status == "final" {
-			games = append(games, []string{g.ID, scope.League, strconv.Itoa(scope.Season), strconv.Itoa(scope.SeasonType), g.StartsAt.UTC().Format(time.RFC3339Nano), g.Home, g.Away, optionalInt(g.HomeScore), optionalInt(g.AwayScore), strconv.FormatBool(g.PlayersComplete)})
+			games = append(games, []string{g.ID, scope.League, strconv.Itoa(scope.Season), strconv.Itoa(scope.SeasonType), g.StartsAt.UTC().Format(time.RFC3339Nano), g.Home, g.Away, optionalInt(g.HomeScore), optionalInt(g.AwayScore), strconv.FormatBool(g.PlayersComplete), optionalInt(g.Week)})
 		}
 	}
 	players := [][]string{{"game_id", "player_id", "player_name", "team_id", "category", "position", "jersey", "did_not_play", "starter", "stats_json", "participation_status"}}
@@ -157,7 +157,7 @@ func validateDestination(path string, scope Scope, overwrite bool) (bool, error)
 	if err := json.Unmarshal(body, &previous); err != nil {
 		return false, fmt.Errorf("read previous report: %w", err)
 	}
-	if previous.SchemaVersion < 1 || previous.SchemaVersion > 3 || previous.Scope.League != scope.League || previous.Scope.Season != scope.Season || previous.Scope.SeasonType != scope.SeasonType {
+	if previous.SchemaVersion < 1 || previous.SchemaVersion > 4 || previous.Scope.League != scope.League || previous.Scope.Season != scope.Season || previous.Scope.SeasonType != scope.SeasonType {
 		return false, fmt.Errorf("previous export has an incompatible schema or season scope")
 	}
 	return true, nil

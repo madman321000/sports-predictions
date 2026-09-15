@@ -27,7 +27,7 @@ def games():
 def export_fixture(path, league="NFL"):
     data = games()
     report = {
-        "schema_version": 3,
+        "schema_version": 4,
         "ready_for_export": True,
         "issues": [],
         "warnings": [],
@@ -52,6 +52,7 @@ def export_fixture(path, league="NFL"):
                 "home_score",
                 "away_score",
                 "player_import_complete",
+                "week",
             ]
         )
         for game in data:
@@ -67,6 +68,7 @@ def export_fixture(path, league="NFL"):
                     game.home_score,
                     game.away_score,
                     "true",
+                    int(game.id) // 2 + 1,
                 ]
             )
     with (path / "players.csv").open("w", newline="") as handle:

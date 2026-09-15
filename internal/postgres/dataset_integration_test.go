@@ -32,6 +32,7 @@ func TestDatasetReadIntegration(t *testing.T) {
 	dr := postgres.NewPostgresDatasetRepository(pool)
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	zero := 0
+	week := 5
 	for _, league := range []string{"NBA", "NFL"} {
 		id, e := gr.LeagueID(ctx, league)
 		if e != nil {
@@ -45,7 +46,7 @@ func TestDatasetReadIntegration(t *testing.T) {
 			if kind == 3 {
 				key = "playoff"
 			}
-			g := game.Game{ExternalID: key, HomeTeamExternalID: "1", AwayTeamExternalID: "2", StartsAt: now, ObservedAt: now, Status: "final", Season: 2026, SeasonType: kind, HomeScore: &zero, AwayScore: &zero}
+			g := game.Game{Week: &week, ExternalID: key, HomeTeamExternalID: "1", AwayTeamExternalID: "2", StartsAt: now, ObservedAt: now, Status: "final", Season: 2026, SeasonType: kind, HomeScore: &zero, AwayScore: &zero}
 			if e := gr.SaveGameImport(ctx, id, "espn", now, []game.Game{g}); e != nil {
 				t.Fatal(e)
 			}
@@ -56,7 +57,7 @@ func TestDatasetReadIntegration(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if len(data.Games) != 1 || data.Games[0].ID != "regular" || len(data.Players) != 0 || len(data.ImportDates) != 1 || dataset.Audit(scope, data).Ready {
+	if len(data.Games) != 1 || data.Games[0].ID != "regular" || data.Games[0].Week == nil || *data.Games[0].Week != 5 || len(data.Players) != 0 || len(data.ImportDates) != 1 || dataset.Audit(scope, data).Ready {
 		t.Fatalf("before %+v", data)
 	}
 	refs, e := pr.PlayerGames(ctx, "NBA", 2026, 2)
