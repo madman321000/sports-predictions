@@ -89,7 +89,7 @@ the stale lock and retrying. This is not a filesystem transaction across crashes
 The directory contains:
 
 - `games.csv`: one row per stored final game, ESPN game/team IDs, scope, UTC start
-  time, scores and a player-import-complete flag.
+  time, scores, a player-import-complete flag and nullable ESPN `week`.
 - `players.csv`: one row per game/player/statistic category, with ESPN IDs, player
   name, historical team/position/jersey, DNP and nullable starter flags, `participation_status`, and
   `stats_json`. Parse this JSON column to retain provider metric names and original
@@ -102,7 +102,7 @@ The directory contains:
 
 ## Warnings and incomplete data
 
-Report schema version 3 retains the separation of blocking `issues` from non-blocking `warnings`.
+Report schema version 4 retains the separation of blocking `issues` from non-blocking `warnings`.
 NFL passing `adjQBR: "--"` is an unavailable optional derived rating: it produces
 an `unavailable_adjusted_qbr` warning and remains unchanged in exported raw stats.
 Missing core stats still block export, even when the same row has a QBR warning.
@@ -143,7 +143,7 @@ NBA general-stat rows with explicitly false `starter`, unavailable (`--`) minute
 and the complete expected set of otherwise zero statistics produce an
 `uncertain_participation` warning. Other missing or nonzero statistics retain the
 existing blocking checks. This does not infer DNP or replace missing minutes with
-zero. Schema version 3 appends `participation_status` to `players.csv`, with values
+zero. Schema version 3 introduced `participation_status` to `players.csv`, with values
 `reported`, `did_not_play`, or `uncertain`. `reported` means no special classification,
 not independent verification of playing time. Exclude uncertain rows when counting
 appearances or calculating per-appearance averages. Raw database season-total
@@ -151,3 +151,10 @@ appearances or calculating per-appearance averages. Raw database season-total
 appearances; use the exported participation flag for modeling.
 
 Next: [train the offline models](../../modeling/README.md).
+
+## NFL week metadata
+
+Schema v4 appends `week` to `games.csv`, using the existing database column.
+Re-export with `-overwrite` to upgrade a v3 directory; no migration is needed.
+NBA weeks can be empty. NFL weekly evaluation requires nonempty week values and
+fails rather than inferring them from dates. Baseline training still accepts v3.

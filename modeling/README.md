@@ -3,7 +3,7 @@
 [Project overview](../README.md) · [Prepare exports](../docs/data/README.md) · [Development](../docs/development/README.md)
 
 This first model predicts home-win probability separately for NBA and NFL, using
-schema-v3 exports from `cmd/data`. It never calls ESPN or connects to PostgreSQL.
+schema-v3/v4 exports from `cmd/data`. It never calls ESPN or connects to PostgreSQL.
 No Go changes, database migrations, or player features are required.
 
 ## Run locally

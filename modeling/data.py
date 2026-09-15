@@ -17,6 +17,7 @@ class Game:
     away: str
     home_score: int
     away_score: int
+    week: int | None = None
 
 
 def require(condition, message):
@@ -51,11 +52,11 @@ def load_export(directory: Path):
     report = json.loads(bodies["report.json"])
     require(isinstance(report, dict), "quality report must be an object")
     require(
-        report.get("schema_version") == 3
+        report.get("schema_version") in (3, 4)
         and report.get("ready_for_export") is True
         and report.get("issues") == []
         and report.get("missing_import_dates") == [],
-        "a ready schema-v3 export without blocking issues is required",
+        "a ready schema-v3/v4 export without blocking issues is required",
     )
     scope = report["scope"]
     require(isinstance(scope, dict), "scope must be an object")
@@ -95,6 +96,10 @@ def load_export(directory: Path):
         require(
             row["home_score"].isdigit() and row["away_score"].isdigit(), "invalid score"
         )
+        week = row.get("week", "")
+        if report["schema_version"] == 4:
+            require("week" in row, "schema-v4 games require a week column")
+        require(not week or (week.isdigit() and int(week) > 0), "invalid week")
         game = Game(
             row["game_id"],
             start.astimezone(timezone.utc),
@@ -102,6 +107,7 @@ def load_export(directory: Path):
             row["away_team_id"],
             int(row["home_score"]),
             int(row["away_score"]),
+            int(week) if week else None,
         )
         require(game.id and game.id not in ids, "empty or duplicate game ID")
         require(game.home and game.away and game.home != game.away, "invalid teams")

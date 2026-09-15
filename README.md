@@ -20,7 +20,7 @@ All commands run from the repository root.
 | 4. Model | [Train and evaluate separate NBA/NFL baselines](modeling/README.md) |
 
 You need Go 1.27.1, Docker Compose and Git for ingestion. Modeling uses Python 3.12.
-If your database and schema-v3 exports are already ready, go straight to the
+If your database and schema-v3/v4 exports are already ready, go straight to the
 [modeling guide](modeling/README.md#run-locally); no reimport is needed.
 
 ## Working on the project

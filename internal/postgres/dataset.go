@@ -22,7 +22,7 @@ func (r *PostgresDatasetRepository) Read(ctx context.Context, s dataset.Scope) (
 		return data, err
 	}
 	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, `SELECT g.external_id,g.starts_at,h.external_id,a.external_id,g.status,g.home_score,g.away_score,c.id IS NOT NULL
+		rows, err := tx.Query(ctx, `SELECT g.external_id,g.starts_at,h.external_id,a.external_id,g.status,g.home_score,g.away_score,c.id IS NOT NULL,g.week
  FROM games g JOIN leagues l ON l.id=g.league_id JOIN teams h ON h.id=g.home_team_id JOIN teams a ON a.id=g.away_team_id
  LEFT JOIN player_complete_games c ON c.id=g.id
  WHERE l.abbreviation=$1 AND g.provider='espn' AND g.season=$2 AND g.season_type=$3 ORDER BY g.starts_at,g.external_id`, s.League, s.Season, s.SeasonType)
@@ -31,7 +31,7 @@ func (r *PostgresDatasetRepository) Read(ctx context.Context, s dataset.Scope) (
 		}
 		for rows.Next() {
 			var g dataset.Game
-			if err := rows.Scan(&g.ID, &g.StartsAt, &g.Home, &g.Away, &g.Status, &g.HomeScore, &g.AwayScore, &g.PlayersComplete); err != nil {
+			if err := rows.Scan(&g.ID, &g.StartsAt, &g.Home, &g.Away, &g.Status, &g.HomeScore, &g.AwayScore, &g.PlayersComplete, &g.Week); err != nil {
 				rows.Close()
 				return err
 			}
