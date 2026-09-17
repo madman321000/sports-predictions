@@ -120,8 +120,24 @@ scores become available after the game. The [modeling pipeline](../../modeling/R
 
 ## NBA reconciliation
 
-The quality command recognizes four explicitly reconciled ESPN replacements in
-the NBA 2026 regular season:
+The quality command recognizes explicitly reconciled ESPN replacements, scoped
+to the NBA regular season and season year. For season 2025:
+
+| Postponed game | Replacement final game | Played date (local) |
+| --- | --- | --- |
+| 401705090 | 401748704 | February 19, 2025 |
+| 401705098 | 401748705 | January 28, 2025 |
+| 401705103 | 401754705 | March 17, 2025 |
+| 401705104 | 401748706 | March 16, 2025 |
+| 401705183 | 401754706 | April 6, 2025 |
+
+Dates were verified using the [NBA January 15 announcement](https://pr.nba.com/nba-game-schedule-adjustments-1-15-25/),
+[Spurs announcement](https://www.nba.com/spurs/news/san-antonio-spurs-announce-schedule-changes),
+and [Pelicans announcement](https://www.nba.com/pelicans/news/pelicans-tickets-information-nba-schedule-adjustments-smoothie-king-center-milwaukee-bucks-orlando-magic),
+then matched to stored ESPN IDs. The January 13 Lakers–Spurs game is a separate
+matchup, not the replacement for January 11. UTC dates can be the next day.
+
+For season 2026:
 
 | Postponed game | Replacement final game |
 | --- | --- |

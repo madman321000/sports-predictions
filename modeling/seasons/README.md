@@ -26,8 +26,8 @@ go run ./cmd/data -action quality -league NFL -season 2024 -from 2024-09-01 -to 
 go run ./cmd/data -action export -league NFL -season 2024 -from 2024-09-01 -to 2025-02-28 -out exports/nfl-2024 -overwrite
 ```
 
-Resolve blocking quality findings before proceeding. The explicit NBA 2026
-postponement mappings do not automatically reconcile earlier seasons. These are
+Resolve blocking quality findings before proceeding. Only explicitly verified, season-scoped
+postponement mappings are reconciled; other postponed records need investigation. These are
 regular-season exports; postseason is separate. Historical box scores describe
 observed participation, not complete rosters.
 
