@@ -11,18 +11,30 @@ import (
 // https://pr.nba.com/heat-bulls-schedule-adjustments/
 // https://www.nba.com/news/warriors-timberwolves-game-postponed
 // https://www.nba.com/news/nba-schedule-adjustments-weather-2026
-var nba2026Replacements = map[string]string{
-	"401810384": "401850920",
-	"401810499": "401857824",
-	"401810506": "401858693",
-	"401810507": "401858694",
+var nbaReplacements = map[int]map[string]string{
+	2025: {
+		// https://pr.nba.com/nba-game-schedule-adjustments-1-15-25/
+		"401705090": "401748704",
+		"401705098": "401748705",
+		"401705104": "401748706",
+		// https://www.nba.com/spurs/news/san-antonio-spurs-announce-schedule-changes
+		"401705103": "401754705",
+		// https://www.nba.com/pelicans/news/pelicans-tickets-information-nba-schedule-adjustments-smoothie-king-center-milwaukee-bucks-orlando-magic
+		"401705183": "401754706",
+	},
+	2026: {
+		"401810384": "401850920",
+		"401810499": "401857824",
+		"401810506": "401858693",
+		"401810507": "401858694",
+	},
 }
 
 func replacement(s Scope, old Game, games []Game) string {
-	if s.League != "NBA" || s.Season != 2026 || s.SeasonType != 2 || old.Status != "postponed" {
+	if s.League != "NBA" || s.SeasonType != 2 || old.Status != "postponed" {
 		return ""
 	}
-	id := nba2026Replacements[old.ID]
+	id := nbaReplacements[s.Season][old.ID]
 	if id == "" {
 		return ""
 	}
