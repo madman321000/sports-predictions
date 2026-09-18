@@ -1,0 +1,139 @@
+name: Dashboard CI and deployment
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Deployment verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Check Go formatting
+        run: test -z "$(gofmt -l cmd internal)"
+      - name: Scan history for secrets (redacted output)
+        run: go run github.com/zricethezav/gitleaks/v8@v8.30.1 git --redact --no-banner --log-level warn .
+      - run: cp .env.example .env
+      - run: docker compose up -d --wait --wait-timeout 60 db
+      - run: go test -race -count=1 -timeout=5m ./...
+      - uses: golangci/golangci-lint-action@v9.3.0
+        with:
+          version: v2.13.2
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: modeling/requirements.txt
+      - run: python -m pip install -r modeling/requirements.txt
+      - run: python -m ruff check modeling && python -m ruff format --check modeling
+      - run: python -m unittest discover -s modeling/tests -v
+      - name: Verify API container builds
+        run: docker build -t sports-api:check .
+      - name: Stop test database
+        if: always()
+        run: docker compose down --volumes
+
+  frontend:
+    name: Dashboard browser tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || 'http://localhost:8080' }}
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: dashboard-dist
+          path: frontend/dist
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy production
+    needs: [verify, frontend]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    concurrency:
+      group: sports-predictions-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+      - name: Skip superseded commits
+        id: revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          current=$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq '.object.sha')
+          if [ "$current" = "$GITHUB_SHA" ]; then
+            echo 'deploy=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'deploy=false' >> "$GITHUB_OUTPUT"
+            echo 'Skipped: main has advanced beyond this tested commit.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/download-artifact@v8.0.1
+        if: steps.revision.outputs.deploy == 'true'
+        with:
+          name: dashboard-dist
+          path: .vercel/output/static
+      - name: Prepare verified static output
+        if: steps.revision.outputs.deploy == 'true'
+        env:
+          API_URL: ${{ vars.VITE_API_BASE_URL }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          node <<'JS'
+          const fs = require('node:fs');
+          const url = new URL(process.env.API_URL);
+          if (url.protocol !== 'https:') throw new Error('Set VITE_API_BASE_URL to the HTTPS production API URL');
+          for (const name of ['VERCEL_ORG_ID', 'VERCEL_PROJECT_ID']) {
+            if (!process.env[name]) throw new Error(`Missing ${name}`);
+          }
+          fs.writeFileSync('.vercel/output/config.json', JSON.stringify({version: 3}));
+          fs.writeFileSync('.vercel/project.json', JSON.stringify({orgId: process.env.VERCEL_ORG_ID, projectId: process.env.VERCEL_PROJECT_ID}));
+          JS
+      - name: Deploy verified frontend build
+        if: steps.revision.outputs.deploy == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          test -n "$VERCEL_TOKEN"
+          npx --yes vercel@59.23.0 deploy --prebuilt --prod --yes --token "$VERCEL_TOKEN"
+      - name: Request API deployment of this commit
+        if: steps.revision.outputs.deploy == 'true'
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          test -n "$RENDER_DEPLOY_HOOK_URL"
+          curl --fail --silent --show-error --max-time 30 --output /dev/null \
+            --request POST "${RENDER_DEPLOY_HOOK_URL}&ref=${GITHUB_SHA}"
+          echo 'Render deploy requested. Check Render for build completion and /api/health before considering the backend live.' >> "$GITHUB_STEP_SUMMARY"

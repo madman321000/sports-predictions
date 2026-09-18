@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: sports-predictions-api
+    runtime: docker
+    plan: free
+    autoDeployTrigger: off
+    healthCheckPath: /api/health
+    envVars:
+      - key: API_DATABASE_URL
+        sync: false
+      - key: FRONTEND_ORIGIN
+        sync: false
