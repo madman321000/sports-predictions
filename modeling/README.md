@@ -116,3 +116,6 @@ leagues. Fixtures are synthetic; CI does not train against your local season dat
 Use the [evaluation guide](evaluation/README.md) for expanding-window comparisons,
 calibration, date-level performance and confidently wrong predictions. It writes
 separate analysis directories and keeps the original baseline runs intact.
+
+For frozen earlier-to-later season backtests and publishing results, see the
+[dashboard guide](../docs/dashboard/README.md#cross-season-evaluation).

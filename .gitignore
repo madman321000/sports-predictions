@@ -47,3 +47,11 @@ __pycache__/
 *.pyc
 .coverage
 modeling-coverage.xml
+/published/
+frontend/node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+
+# Local deployment tooling
+.vercel/
