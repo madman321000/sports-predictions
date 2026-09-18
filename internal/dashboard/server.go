@@ -112,8 +112,11 @@ func decodeReport(id string, body []byte) (report, error) {
 	return r, nil
 }
 
-func New(reports map[string]report, origin string) http.Handler {
+func New(reports map[string]report, origin string, statsHandler http.Handler) http.Handler {
 	mux := http.NewServeMux()
+	if statsHandler != nil {
+		mux.Handle("/api/stats/", statsHandler)
+	}
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"status": "ok", "runs": len(reports)})
 	})

@@ -19,7 +19,7 @@ func TestAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler := New(reports, "https://frontend.example")
+	handler := New(reports, "https://frontend.example", nil)
 	for _, tc := range []struct {
 		path string
 		code int

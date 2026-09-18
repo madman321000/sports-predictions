@@ -1,16 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
-const API = (
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8080"
-).replace(/\/$/, "");
+import DataExplorer from "./DataExplorer";
+import { get } from "./api";
 const label = (s) => s.replaceAll("_", " ");
 const pct = (x) => `${(x * 100).toFixed(1)}%`;
-async function get(path, signal) {
-  const r = await fetch(API + path, { signal });
-  if (!r.ok) throw Error(`API returned ${r.status}. Please retry.`);
-  return r.json();
-}
 function Chart({ data }) {
   const bins = data.filter((b) => b.games);
   return (
@@ -142,7 +136,8 @@ function App() {
         </div>
         {error && (
           <div role="alert" className="error">
-            {error} Free API hosting may take a minute to wake up.{" "}
+            {error} Check that the API is running and the browser address
+            matches FRONTEND_ORIGIN.{" "}
             <button onClick={() => setRetry(retry + 1)}>Retry</button>
           </div>
         )}
@@ -325,4 +320,26 @@ function App() {
     </>
   );
 }
-createRoot(document.getElementById("root")).render(<App />);
+function Shell() {
+  const [view, setView] = useState("models");
+  return (
+    <>
+      <nav className="view-tabs" aria-label="Dashboard views">
+        <button
+          aria-pressed={view === "models"}
+          onClick={() => setView("models")}
+        >
+          Model results
+        </button>
+        <button
+          aria-pressed={view === "stats"}
+          onClick={() => setView("stats")}
+        >
+          Sports data
+        </button>
+      </nav>
+      {view === "models" ? <App /> : <DataExplorer />}
+    </>
+  );
+}
+createRoot(document.getElementById("root")).render(<Shell />);

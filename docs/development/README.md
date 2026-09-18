@@ -97,3 +97,9 @@ See [modeling tests and CI](../../modeling/README.md#tests-and-ci) for Python se
 lint, tests and coverage commands. The separate `Modeling CI` workflow runs those
 checks on Python 3.12 and uploads a `modeling-coverage` artifact. Both workflows
 use synthetic data and local test services; neither calls ESPN.
+
+Statistics browsing uses `internal/stats` for HTTP validation and the repository
+interface, and `internal/postgres/stats.go` for parameterized read queries. The
+API opens a bounded read-only pool only when `STATS_DATABASE_URL` is configured.
+Frontend browser tests run with `cd frontend && npm test`; set
+`PLAYWRIGHT_PORT=5188` to avoid an already-running local dashboard.
