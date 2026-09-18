@@ -287,3 +287,53 @@ footer {
     margin-left: 0;
   }
 }
+
+.view-tabs {
+  max-width: 1240px;
+  margin: auto;
+  padding: 20px 32px 0;
+  display: flex;
+  gap: 12px;
+}
+.view-tabs button[aria-pressed="true"] {
+  border-color: #25c8b8;
+  color: #25c8b8;
+}
+input {
+  background: #182538;
+  border: 1px solid #334459;
+  color: #e8eef7;
+  border-radius: 7px;
+  padding: 10px 14px;
+  font: inherit;
+  min-width: 210px;
+}
+.season-summary progress {
+  width: 100%;
+  accent-color: #25c8b8;
+}
+.stat-values {
+  white-space: normal;
+  min-width: 260px;
+}
+.stat-values div {
+  display: flex;
+  gap: 15px;
+  justify-content: space-between;
+  margin: 6px 0;
+}
+.stat-values dd {
+  margin: 0;
+}
+.scope-selection button {
+  margin-left: 12px;
+}
+@media (max-width: 700px) {
+  input {
+    min-width: 0;
+    width: 100%;
+  }
+  .view-tabs {
+    padding: 20px 20px 0;
+  }
+}

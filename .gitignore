@@ -55,3 +55,7 @@ frontend/playwright-report/
 
 # Local deployment tooling
 .vercel/
+
+# Local PostgreSQL connection files
+.pg_service.conf
+.pgpass

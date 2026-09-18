@@ -8,10 +8,10 @@ projects and adding credentials is a one-time account setup.
 Free tiers have limits: [Vercel Hobby](https://vercel.com/docs/plans/hobby) is for
 personal, noncommercial use; [Render free services](https://render.com/docs/free)
 sleep after inactivity and can have slow first requests; check current
-[Neon limits](https://neon.com/pricing) before loading data. This deployment stores
-only published reports and historical predictions in Neon. Keep raw multi-season
-box scores, training and ingestion local so they do not consume the hosting
-budget. No paid plan or always-on availability is assumed.
+[Neon limits](https://neon.com/pricing) before loading data. The default deployment stores
+only published reports and historical predictions in Neon. To host the player
+and season dataset too, follow the full-dataset section below and budget storage
+for it. Training and ingestion can continue locally. No paid plan or always-on availability is assumed.
 
 ## 1. Create the database
 
@@ -143,3 +143,59 @@ npm run build
 
 Set `TEST_DATABASE_URL` to a disposable PostgreSQL instance for integration
 tests; tests use isolated schemas. See [development](../development/README.md).
+
+## Hosting the full sports dataset later
+
+The **Sports data** feature also needs the ingestion tables and views. A
+publication-only database created with migration 6 is insufficient for it. Keep
+`API_DATABASE_URL` for model publications and add **`STATS_DATABASE_URL`** in
+Render's secret environment settings for a read-only connection to the full
+sports database. Both URLs can point to the same database and reader role once
+it contains all tables. Leaving `STATS_DATABASE_URL` empty disables only the
+Sports data view. Do not add either URL to Vercel or `VITE_*` settings.
+
+For a first deployment, restore a local snapshot into an **empty dedicated hosted
+database**. Restoring copies schema and data, so do not apply migrations 1–5 first.
+Create the dump using the PostgreSQL client in your current local container:
+
+```bash
+mkdir -p exports
+docker compose exec -T db sh -c \
+  'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner --no-acl -Fc' \
+  > exports/sports-database.dump
+```
+
+The ignored `exports/` directory keeps the dump out of Git. Keep a backup locally.
+For restore, use a PostgreSQL client at least as new as the source server. Configure
+an ignored local `.pg_service.conf` entry named `sports_hosted` with the hosted
+owner role's host, port, database, user and required TLS settings. Keep its
+password in a password manager or an ignored `.pgpass` file with permissions
+`chmod 600 .pgpass`; never commit real connection details. Then, from the repo:
+
+```bash
+PGSERVICEFILE="$PWD/.pg_service.conf" PGPASSFILE="$PWD/.pgpass" \
+  pg_restore --dbname='service=sports_hosted' --no-owner --no-acl \
+  --exit-on-error --single-transaction exports/sports-database.dump
+```
+
+Do not add `--clean` or restore into a database containing data you want to retain.
+A snapshot includes the migration state present locally. If `dashboard_reports`
+was not in the dump, apply migration 6 once afterward; otherwise do not rerun it.
+Compare hosted table counts with local counts before using the hosted reader.
+
+Grant the dedicated reader `CONNECT` on the database and `USAGE` on the schema,
+then only these SELECT permissions (alongside `dashboard_reports` for models):
+
+```sql
+GRANT SELECT ON public.leagues, public.teams, public.games, public.players,
+  public.player_game_stats, public.player_game_imports,
+  public.player_complete_games, public.player_season_totals
+TO dashboard_reader;
+```
+
+Ingestion and training can continue locally; they do not automatically synchronize
+with the hosted snapshot. Refreshing hosted raw data needs an explicit later
+import/restore workflow. `cmd/publish` updates model reports only. API stats
+queries read committed database state on each request; model reports still load
+at startup. Monitor database storage as more seasons are added, including indexes.
+The deployment workflow deploys code only and never migrates or overwrites data.

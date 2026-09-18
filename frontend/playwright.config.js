@@ -1,10 +1,11 @@
 import { defineConfig } from "@playwright/test";
+const port = process.env.PLAYWRIGHT_PORT || "5173";
 export default defineConfig({
   testDir: "tests",
-  use: { baseURL: "http://localhost:5173" },
+  use: { baseURL: `http://localhost:${port}` },
   webServer: {
-    command: "npm run dev -- --port 5173",
-    url: "http://localhost:5173",
+    command: `npm run dev -- --port ${port} --strictPort`,
+    url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,
   },
 });

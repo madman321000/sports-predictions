@@ -98,3 +98,69 @@ requires five prior games. Earlier exports need NFL week metadata. Both seasons
 have already been inspected, so this is still development evaluation. Keep the
 reserved future holdout untouched. `dashboard.json` retains local provenance and
 saved `.joblib` files are local trusted artifacts, never web downloads.
+
+## Browse the full sports database
+
+Choose **Sports data** in the dashboard to browse leagues, seasons, teams, games,
+players, player box scores and additive season totals. This reads the ingestion
+database directly; it does not call ESPN or run ingestion when you open a page.
+
+For your existing local database (migrations 1–5 already applied):
+
+1. Add `STATS_DATABASE_URL` to the root `.env`. Set it to the same connection URL
+   as your existing `DATABASE_URL`, or preferably a dedicated reader URL. Copy the
+   actual URL value; `.env` variable interpolation is not supported. Keep
+   `API_DATABASE_URL` empty to continue loading model reports from `published/`.
+2. Restart `go run ./cmd/api` from the repository root. The stats connection pool
+   is limited to four connections and defaults to read-only transactions.
+3. Start/restart the frontend with `cd frontend && npm run dev`.
+4. Open **http://localhost:5173**, matching `FRONTEND_ORIGIN`. Opening
+   `http://127.0.0.1:5173` instead causes a CORS error with this configuration.
+5. Select **Sports data**, a league, season and season type. Use the Browse
+   selector for games, teams, players, box scores or totals. From Games, choose
+   **View box score**. From Players, search a name and choose **Player games** or
+   **Player totals**. Clear the selection to return to all players/games.
+
+No additional migration or reimport is needed for this feature. With
+`STATS_DATABASE_URL` empty, model results still work and Sports data shows setup
+instructions. Use an existing or empty `published/` directory for the local API.
+Player tables show only complete imported final-game box scores. DNP rows are
+labeled; blank/unknown provider values stay unchanged. A player's team membership
+reflects observed box scores, not a current roster. Season totals exclude DNPs,
+keep traded players' team totals separate, and sum only supported additive
+metrics—never percentages or ratings. Counts describe imported data only.
+
+### Statistics API
+
+All routes below return `{total, limit, offset, items}`. IDs used in filters are
+local database IDs serialized as strings, distinct from `external_id` (ESPN).
+All routes are read-only and public when deployed. They expose sports data only.
+
+| GET endpoint | Required filters | Optional filters |
+| --- | --- | --- |
+| `/api/stats/leagues` | None | Pagination |
+| `/api/stats/seasons` | `league` | Pagination |
+| `/api/stats/teams` | `league`, `season` | `season_type`, pagination |
+| `/api/stats/games` | `league`, `season` | `season_type`, `team_id`, `status`, pagination |
+| `/api/stats/players` | `league`, `season` | `season_type`, `team_id`, `q` (name substring), pagination |
+| `/api/stats/player-games` | `league`, `season` | `season_type`, `team_id`, `player_id`, `game_id`, `category`, pagination |
+| `/api/stats/totals` | `league`, `season` | `season_type`, `team_id`, `player_id`, `category`, pagination |
+
+`league` is NBA or NFL. The provider is ESPN. `season_type` defaults to 2 (regular
+season); 1 is preseason and 3 is postseason. Pagination uses `limit` (default 25,
+maximum 100) and `offset` (default 0, maximum 1,000,000). Unsupported filters,
+duplicate query parameters and invalid values return 400. Empty/out-of-range
+pages return 200 with an empty items array. Database failures return a generic
+503 without credentials or SQL details. Queries have a 10-second deadline.
+Totals are one row per player/team/category/metric, with `games_with_metric`
+showing the number of complete games contributing that metric.
+
+```bash
+curl 'http://127.0.0.1:8080/api/stats/seasons?league=NBA'
+curl 'http://127.0.0.1:8080/api/stats/games?league=NBA&season=2026&limit=25'
+curl 'http://127.0.0.1:8080/api/stats/players?league=NFL&season=2025&q=Allen'
+```
+
+Team and season dropdowns show up to 100 options; their API lists are paginated.
+All result tables are paginated. Unfinished/postponed game rows remain visible
+with their stored status; this browser does not replace export quality checks.
