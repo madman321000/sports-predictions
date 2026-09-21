@@ -23,6 +23,36 @@ func (c *Client) FetchGames(ctx context.Context, league string, date time.Time) 
 	return decodeGamesWithSkips(response.body, league, response.observedAt, c.onSkippedEvent)
 }
 
+// FetchGameRange fetches at most 31 calendar dates, keeping a regular-season
+// scoreboard response comfortably below the 1000-event request limit.
+func (c *Client) FetchGameRange(ctx context.Context, league string, from, to time.Time) ([]game.Game, error) {
+	if to.Before(from) || to.Sub(from) > 30*24*time.Hour {
+		return nil, fmt.Errorf("scoreboard range must span 1–31 dates")
+	}
+	path, err := leaguePath(league)
+	if err != nil {
+		return nil, err
+	}
+	response, err := c.getSnapshotWithLimit(ctx, path+"/scoreboard?dates="+from.Format("20060102")+"-"+to.Format("20060102")+"&limit=1000", 16<<20)
+	if err != nil {
+		return nil, err
+	}
+	var payload struct {
+		Events []json.RawMessage `json:"events"`
+	}
+	if err := json.Unmarshal(response.body, &payload); err != nil {
+		return nil, err
+	}
+	if len(payload.Events) >= 1000 {
+		return nil, fmt.Errorf("scoreboard range may be truncated")
+	}
+	games, err := decodeGamesWithSkips(response.body, league, response.observedAt, c.onSkippedEvent)
+	if len(games) >= 1000 {
+		return nil, fmt.Errorf("scoreboard range may be truncated")
+	}
+	return games, err
+}
+
 type scoreboard struct {
 	Leagues []struct {
 		Abbreviation string `json:"abbreviation"`

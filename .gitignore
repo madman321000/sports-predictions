@@ -59,3 +59,6 @@ frontend/playwright-report/
 # Local PostgreSQL connection files
 .pg_service.conf
 .pgpass
+
+# Locally exported inference models
+/models/serving/

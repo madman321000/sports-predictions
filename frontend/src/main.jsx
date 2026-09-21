@@ -1,345 +1,205 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import "./style.css";
-import DataExplorer from "./DataExplorer";
 import { get } from "./api";
-const label = (s) => s.replaceAll("_", " ");
-const pct = (x) => `${(x * 100).toFixed(1)}%`;
-function Chart({ data }) {
-  const bins = data.filter((b) => b.games);
-  return (
-    <svg
-      viewBox="0 0 400 240"
-      role="img"
-      aria-label="Calibration: predicted versus observed home-win probability"
-    >
-      <path d="M45 15V205H375" fill="none" stroke="#a3b2c4" />
-      <path d="M45 205L375 15" stroke="#a3b2c4" strokeDasharray="5 5" />
-      {[0, 0.5, 1].map((t) => (
-        <g key={t}>
-          <text x={35} y={208 - t * 190} textAnchor="end">
-            {pct(t)}
-          </text>
-          <text x={45 + t * 330} y="225" textAnchor="middle">
-            {pct(t)}
-          </text>
-        </g>
-      ))}
-      <polyline
-        points={bins
-          .map(
-            (b) =>
-              `${45 + b.mean_probability * 330},${205 - b.observed_home_win_rate * 190}`,
-          )
-          .join(" ")}
-        fill="none"
-        stroke="#21b6a8"
-        strokeWidth="3"
-      />
-      {bins.map((b, i) => (
-        <circle
-          key={i}
-          cx={45 + b.mean_probability * 330}
-          cy={205 - b.observed_home_win_rate * 190}
-          r="5"
-          fill="#21b6a8"
-        >
-          <title>{`${b.games} games: predicted ${pct(b.mean_probability)}, observed ${pct(b.observed_home_win_rate)}`}</title>
-        </circle>
-      ))}
-    </svg>
-  );
-}
+import "./style.css";
+
+const percent = (value) => `${(value * 100).toFixed(1)}%`;
 function App() {
-  const [runs, setRuns] = useState([]),
-    [id, setId] = useState(""),
-    [run, setRun] = useState(null),
-    [candidate, setCandidate] = useState(""),
-    [page, setPage] = useState(0),
-    [rows, setRows] = useState(null),
+  const [league, setLeague] = useState("NBA"),
+    [data, setData] = useState(null),
     [error, setError] = useState(""),
-    [retry, setRetry] = useState(0);
+    [refresh, setRefresh] = useState(0);
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  useEffect(() => {
+    const timer = setInterval(() => setRefresh((x) => x + 1), 60000);
+    return () => clearInterval(timer);
+  }, []);
   useEffect(() => {
     const c = new AbortController();
     setError("");
-    get("/api/runs", c.signal)
-      .then((x) => {
-        setRuns(x);
-        setId((v) => (x.some((r) => r.id === v) ? v : x[0]?.id || ""));
-      })
+    get(`/api/today?${new URLSearchParams({ league, timezone })}`, c.signal)
+      .then(setData)
       .catch((e) => {
         if (e.name !== "AbortError") setError(e.message);
       });
     return () => c.abort();
-  }, [retry]);
-  useEffect(() => {
-    if (!id) return;
-    const c = new AbortController();
-    setRun(null);
-    setRows(null);
-    setError("");
-    get(`/api/runs/${encodeURIComponent(id)}`, c.signal)
-      .then((x) => {
-        setRun(x);
-        setCandidate(Object.keys(x.candidates)[0]);
-        setPage(0);
-      })
-      .catch((e) => {
-        if (e.name !== "AbortError") setError(e.message);
-      });
-    return () => c.abort();
-  }, [id, retry]);
-  useEffect(() => {
-    if (!run || !candidate) return;
-    const c = new AbortController();
-    setRows(null);
-    get(
-      `/api/runs/${encodeURIComponent(id)}/predictions?candidate=${encodeURIComponent(candidate)}&offset=${page * 25}&limit=25`,
-      c.signal,
-    )
-      .then(setRows)
-      .catch((e) => {
-        if (e.name !== "AbortError") setError(e.message);
-      });
-    return () => c.abort();
-  }, [id, run, candidate, page, retry]);
-  const result = run?.candidates[candidate];
+  }, [league, timezone, refresh]);
+  const current = data?.league === league ? data : null;
   return (
     <>
       <header>
         <a className="brand" href="/">
-          ◈ COURTSIDE <span>MODEL LAB</span>
+          ◈ COURTSIDE <span>TODAY</span>
         </a>
-        <span className="status">Historical research · NBA / NFL</span>
+        <span className="status">NBA / NFL · Pregame predictions</span>
       </header>
       <main>
         <div className="intro">
           <div>
-            <p className="eyebrow">MEASURE. COMPARE. LEARN.</p>
+            <p className="eyebrow">THE DAY'S MATCHUPS</p>
             <h1>
-              A clearer view of
-              <br />
-              every prediction.
+              Today’s games.
+              <br />A view before the whistle.
             </h1>
             <p className="subtitle">
-              Explore team baselines, probability calibration and historical
-              outcomes.
+              Game times and today’s date use your timezone:{" "}
+              <strong>{timezone}</strong>.
             </p>
           </div>
           <div className="notice">
-            <strong>Development backtests</strong>
+            <strong>Experimental win probabilities</strong>
             <p>
-              These are historical predictions on observed seasons, not live
-              forecasts or a fresh holdout.
+              Locally trained models. No player predictions yet. A missing
+              prediction means the model or its required history is not ready.
             </p>
           </div>
         </div>
+        <div className="today-toolbar">
+          <div className="league-tabs" role="group" aria-label="League">
+            {["NBA", "NFL"].map((l) => (
+              <button
+                key={l}
+                aria-pressed={league === l}
+                onClick={() => {
+                  if (l === league) return;
+                  setLeague(l);
+                  setData(null);
+                }}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setRefresh((x) => x + 1)}>
+            Refresh games
+          </button>
+        </div>
         {error && (
           <div role="alert" className="error">
-            {error} Check that the API is running and the browser address
-            matches FRONTEND_ORIGIN.{" "}
-            <button onClick={() => setRetry(retry + 1)}>Retry</button>
+            {error} Check that your API is running and the browser address
+            matches its configured origin.
           </div>
         )}
-        <div className="filters">
-          <label>
-            Published run
-            <select value={id} onChange={(e) => setId(e.target.value)}>
-              {runs.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Candidate
-            <select
-              value={candidate}
-              onChange={(e) => {
-                setCandidate(e.target.value);
-                setPage(0);
-              }}
-            >
-              {Object.keys(run?.candidates || {}).map((k) => (
-                <option key={k}>{k}</option>
-              ))}
-            </select>
-          </label>
-          <span>
-            {run?.league} {run?.training_season && `${run.training_season} → `}
-            {run?.test_season}
-          </span>
-        </div>
-        {!runs.length && !error && (
-          <div className="panel">
-            No published runs yet. Publish a completed backtest to begin.
-          </div>
-        )}
-        {id && !run && !error && <p role="status">Loading run…</p>}
-        {result && (
+        {!current && !error && <p role="status">Loading today’s schedule…</p>}
+        {current && (
           <>
-            <div className="metrics">
-              {[
-                ["Test games", result.metrics.games],
-                ["Accuracy", pct(result.metrics.accuracy)],
-                ["Log loss", result.metrics.log_loss.toFixed(4)],
-                ["Brier score", result.metrics.brier_score.toFixed(4)],
-              ].map(([name, val]) => (
-                <div className="metric" key={name}>
-                  <span>{name}</span>
-                  <strong>{val}</strong>
-                </div>
-              ))}
+            <div className="day-heading">
+              <h2>
+                {league} · {current.date}
+              </h2>
+              <span className="caption">
+                Schedule updated{" "}
+                {new Date(current.updated_at).toLocaleTimeString()} · checks
+                every minute
+              </span>
             </div>
-            <div className="grid">
+            {!current.model_id && (
+              <p className="panel">
+                No {league} model installed. Games are available; probabilities
+                will appear after a locally trained model is installed.
+              </p>
+            )}
+            {["warming", "stale", "unavailable"].includes(
+              current.history_status,
+            ) && (
+              <p role="status" className="panel">
+                {current.history_status === "warming"
+                  ? "Preparing this season’s team history. The first load can take a few minutes."
+                  : "Team history is temporarily unavailable or out of date. New predictions are paused."}{" "}
+                ESPN requests are cached and paced.
+              </p>
+            )}
+            {!current.games.length ? (
               <section className="panel">
-                <p className="eyebrow">PROBABILITY CHECK</p>
-                <h2>Calibration</h2>
-                <p>
-                  Predicted probability (horizontal) vs. observed home wins
-                  (vertical).
-                </p>
-                <Chart data={result.calibration || []} />
-                <p className="caption">
-                  Dashed line: perfect calibration. Small bins are noisy.
-                </p>
+                <h2>No {league} games today</h2>
+                <p>Check the other league or come back tomorrow.</p>
               </section>
-              <section className="panel">
-                <p className="eyebrow">SAME GAMES, DIFFERENT MODELS</p>
-                <h2>Candidate comparison</h2>
-                <div className="scroll">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Candidate</th>
-                        <th>Log loss ↓</th>
-                        <th>Accuracy</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Object.entries(run.candidates).map(([k, v]) => (
-                        <tr key={k}>
-                          <td>{label(k)}</td>
-                          <td>{v.metrics.log_loss.toFixed(4)}</td>
-                          <td>{pct(v.metrics.accuracy)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <p className="caption">
-                  Lower log loss and Brier score are better. Accuracy uses a
-                  fixed 50% threshold.
-                </p>
-              </section>
-            </div>
-            <section className="panel">
-              <div className="sectiontitle">
-                <div>
-                  <p className="eyebrow">PREDICTION EXPLORER</p>
-                  <h2>Historical games</h2>
-                </div>
-                <span>{rows?.total ?? "…"} predictions</span>
-              </div>
-              <div className="scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Game / ESPN teams</th>
-                      <th>Final score</th>
-                      <th>Home win probability</th>
-                      <th>Actual winner</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows?.items.map((r) => (
-                      <tr key={r.game_id}>
-                        <td>{r.date}</td>
-                        <td>
-                          {r.game_id}
-                          <small>
-                            {r.home_team_id
-                              ? `${r.home_team_id} (home) vs ${r.away_team_id}`
-                              : "Team IDs unavailable"}
-                          </small>
-                        </td>
-                        <td>
-                          {r.home_score != null
-                            ? `${r.home_score} – ${r.away_score}`
-                            : "—"}
-                        </td>
-                        <td>
-                          <meter min="0" max="1" value={r.probability} />
-                          {pct(r.probability)}
-                        </td>
-                        <td>
-                          <span className="pill">
-                            {r.home_win ? "Home" : "Away"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {!rows && <p role="status">Loading predictions…</p>}
-              <div className="pagination">
-                <button
-                  disabled={!page || !rows}
-                  onClick={() => setPage(page - 1)}
-                >
-                  ← Previous
-                </button>
-                <span>Page {page + 1}</span>
-                <button
-                  disabled={!rows || (page + 1) * 25 >= rows.total}
-                  onClick={() => setPage(page + 1)}
-                >
-                  Next →
-                </button>
-              </div>
-            </section>
-            <details className="panel">
-              <summary>Scope and limitations</summary>
-              <ul>
-                {run.limitations?.map((x) => (
-                  <li key={x}>{x}</li>
+            ) : (
+              <div className="match-grid">
+                {current.games.map((g) => (
+                  <GameCard key={g.id} game={g} />
                 ))}
-              </ul>
-              <p>Published {run.generated_at}</p>
-            </details>
+              </div>
+            )}
+            <p className="caption">
+              Regular-season win models require five prior games per team.
+              NBA/NFL exhibition and preseason games are excluded. In-progress
+              or final games show a pregame prediction only if this API recorded
+              one before the start. Results are not used to invent predictions
+              after a game begins.
+            </p>
           </>
         )}
       </main>
       <footer>
-        COURTSIDE / Sports Predictions · Learning from the game, one season at a
-        time.
+        Training and evaluation stay local. This site serves game schedules and
+        model inference only.
       </footer>
     </>
   );
 }
-function Shell() {
-  const [view, setView] = useState("models");
+function GameCard({ game: g }) {
+  const p = g.prediction;
+  const started = g.status !== "scheduled";
   return (
-    <>
-      <nav className="view-tabs" aria-label="Dashboard views">
-        <button
-          aria-pressed={view === "models"}
-          onClick={() => setView("models")}
-        >
-          Model results
-        </button>
-        <button
-          aria-pressed={view === "stats"}
-          onClick={() => setView("stats")}
-        >
-          Sports data
-        </button>
-      </nav>
-      {view === "models" ? <App /> : <DataExplorer />}
-    </>
+    <article className="panel match-card">
+      <div className="match-meta">
+        <time dateTime={g.starts_at}>
+          {new Date(g.starts_at).toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+          })}
+        </time>
+        <span className="pill">{g.status.replaceAll("_", " ")}</span>
+      </div>
+      <div className="match-team">
+        <div>
+          <span className="caption">AWAY</span>
+          <h3>{g.away_team}</h3>
+        </div>
+        <strong>{started ? (g.away_score ?? "—") : "—"}</strong>
+      </div>
+      <div className="match-team">
+        <div>
+          <span className="caption">HOME</span>
+          <h3>{g.home_team}</h3>
+        </div>
+        <strong>{started ? (g.home_score ?? "—") : "—"}</strong>
+      </div>
+      {p ? (
+        <div className="prediction">
+          <p className="eyebrow">PREGAME WIN PROBABILITY</p>
+          <div className="probabilities">
+            <span>
+              {g.away_team}
+              <strong>{percent(p.away_probability)}</strong>
+            </span>
+            <span>
+              {g.home_team}
+              <strong>{percent(p.home_probability)}</strong>
+            </span>
+          </div>
+          <meter
+            aria-label={`${g.home_team} home-win probability`}
+            min="0"
+            max="1"
+            value={p.home_probability}
+          />
+          <p className="caption">
+            Model {p.model_id} · calculated{" "}
+            {new Date(p.generated_at).toLocaleTimeString()}
+            <br />
+            {p.away_history_games} away-team / {p.home_history_games} home-team
+            prior games
+          </p>
+        </div>
+      ) : (
+        <div className="prediction">
+          <strong>Prediction unavailable</strong>
+          <p>{g.unavailable}</p>
+        </div>
+      )}
+    </article>
   );
 }
-createRoot(document.getElementById("root")).render(<Shell />);
+createRoot(document.getElementById("root")).render(<App />);

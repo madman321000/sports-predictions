@@ -1,0 +1,122 @@
+{
+  "model": {
+    "schema_version": 1,
+    "model_id": "parity",
+    "league": "NBA",
+    "season_type": 2,
+    "feature_policy": "strictly_prior_utc_dates_v1",
+    "minimum_games": 5,
+    "trained_through": "2025-06-01",
+    "features": [
+      "win_rate_diff",
+      "points_for_diff",
+      "points_against_diff",
+      "margin_diff",
+      "last5_win_rate_diff",
+      "last5_margin_diff",
+      "rest_days_diff"
+    ],
+    "mean": [
+      0.08333333333333333,
+      2.8333333333333335,
+      0.0,
+      2.8333333333333335,
+      0.06666666666666667,
+      1.8333333333333333,
+      0.3333333333333333
+    ],
+    "scale": [
+      0.21147629234082535,
+      4.058598553961973,
+      2.3804761428476167,
+      6.148622248565572,
+      0.2494438257849294,
+      5.177408189003023,
+      1.247219128924647
+    ],
+    "coefficients": [
+      0.15423342146062743,
+      0.13253911549675992,
+      -0.11748818993225153,
+      0.1329730243046498,
+      0.14358861865429332,
+      0.1404456938369941,
+      0.03432004799384156
+    ],
+    "intercept": -0.0035982366284999408
+  },
+  "cases": [
+    {
+      "values": {
+        "win_rate_diff": 0.1,
+        "points_for_diff": 3,
+        "points_against_diff": 1,
+        "margin_diff": 2,
+        "last5_win_rate_diff": 0.2,
+        "last5_margin_diff": 4,
+        "rest_days_diff": 1
+      },
+      "expected": 0.5251022246856282
+    },
+    {
+      "values": {
+        "win_rate_diff": -0.2,
+        "points_for_diff": -3,
+        "points_against_diff": 2,
+        "margin_diff": -5,
+        "last5_win_rate_diff": -0.4,
+        "last5_margin_diff": -8,
+        "rest_days_diff": -2
+      },
+      "expected": 0.21952562354597965
+    },
+    {
+      "values": {
+        "win_rate_diff": 0.4,
+        "points_for_diff": 10,
+        "points_against_diff": -4,
+        "margin_diff": 14,
+        "last5_win_rate_diff": 0.2,
+        "last5_margin_diff": 6,
+        "rest_days_diff": 0
+      },
+      "expected": 0.7466664618535794
+    },
+    {
+      "values": {
+        "win_rate_diff": -0.1,
+        "points_for_diff": 2,
+        "points_against_diff": 3,
+        "margin_diff": -1,
+        "last5_win_rate_diff": 0,
+        "last5_margin_diff": 1,
+        "rest_days_diff": 2
+      },
+      "expected": 0.39876694758144343
+    },
+    {
+      "values": {
+        "win_rate_diff": 0,
+        "points_for_diff": 0,
+        "points_against_diff": 0,
+        "margin_diff": 0,
+        "last5_win_rate_diff": 0,
+        "last5_margin_diff": 0,
+        "rest_days_diff": 0
+      },
+      "expected": 0.4217834571068503
+    },
+    {
+      "values": {
+        "win_rate_diff": 0.3,
+        "points_for_diff": 5,
+        "points_against_diff": -2,
+        "margin_diff": 7,
+        "last5_win_rate_diff": 0.4,
+        "last5_margin_diff": 8,
+        "rest_days_diff": 1
+      },
+      "expected": 0.6881534014445613
+    }
+  ]
+}
