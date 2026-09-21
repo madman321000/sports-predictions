@@ -61,6 +61,7 @@ function App() {
                 key={l}
                 aria-pressed={league === l}
                 onClick={() => {
+                  if (l === league) return;
                   setLeague(l);
                   setData(null);
                 }}

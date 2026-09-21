@@ -53,6 +53,8 @@ test("today, browser timezone, predictions and league switching", async ({
   });
   await page.goto("/");
   await expect(page.getByText("65.0%", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "NBA", exact: true }).click();
+  await expect(page.getByText("65.0%", { exact: true })).toBeVisible();
   await expect(page.getByText("7:00 PM", { exact: true })).toBeVisible();
   await expect(page.getByText("No pregame prediction recorded.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Sports data" })).toHaveCount(
