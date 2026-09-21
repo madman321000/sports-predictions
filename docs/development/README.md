@@ -98,8 +98,9 @@ lint, tests and coverage commands. The separate `Modeling CI` workflow runs thos
 checks on Python 3.12 and uploads a `modeling-coverage` artifact. Both workflows
 use synthetic data and local test services; neither calls ESPN.
 
-Statistics browsing uses `internal/stats` for HTTP validation and the repository
-interface, and `internal/postgres/stats.go` for parameterized read queries. The
-API opens a bounded read-only pool only when `STATS_DATABASE_URL` is configured.
-Frontend browser tests run with `cd frontend && npm test`; set
-`PLAYWRIGHT_PORT=5188` to avoid an already-running local dashboard.
+The deployed API uses `internal/forecast` and the shared ESPN provider. It does
+not mount the legacy report/statistics endpoints or connect to PostgreSQL.
+`modeling.export_model` converts locally fitted pipelines into validated JSON.
+Go/Python parity, timezone boundaries, pregame-only behavior and cached provider
+requests have offline tests. Frontend tests: `cd frontend && npm test`; use
+`PLAYWRIGHT_PORT=5188` to avoid your running dashboard.

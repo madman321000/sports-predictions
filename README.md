@@ -2,11 +2,12 @@
 
 A learning project that imports NBA and NFL data from ESPN into PostgreSQL with
 Go, trains home-win prediction baselines in Python, and displays published
-backtests and imported sports statistics through a React dashboard and read-only Go API.
+today's games and pregame win probabilities through React and a Go inference API.
 
 It supports teams, schedules, results and historical player box scores. Imports
 resume from saved progress. The first models use historical team statistics;
-player-level features are a later step.
+player-level features are a later step. Training and the full dataset stay local;
+the website fetches schedules/results automatically and runs exported models.
 
 ## Start here
 
@@ -19,8 +20,8 @@ All commands run from the repository root.
 | 2. Import | [Teams, full seasons and player data](docs/ingestion/README.md) |
 | 3. Export | [Quality checks, warnings and refreshing exports](docs/data/README.md) |
 | 4. Model | [Train and evaluate separate NBA/NFL baselines](modeling/README.md) |
-| 5. View | [Browse sports data, publish reports and run the dashboard](docs/dashboard/README.md) |
-| 6. Deploy | [Free hosting, managed secrets and GitHub Actions](docs/deployment/README.md) |
+| 5. View | [Export local models and view today’s predictions](docs/dashboard/README.md) |
+| 6. Deploy | [Future model-only deployment and GitHub Actions](docs/deployment/README.md) |
 
 You need Go 1.27.1, Docker Compose and Git for ingestion. Modeling uses Python 3.12.
 If your database and schema-v3/v4 exports are already ready, go straight to the

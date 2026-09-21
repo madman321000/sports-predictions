@@ -6,7 +6,7 @@ services:
     autoDeployTrigger: off
     healthCheckPath: /api/health
     envVars:
-      - key: API_DATABASE_URL
-        sync: false
+      - key: FORECAST_MODEL_DIR
+        value: /etc/secrets
       - key: FRONTEND_ORIGIN
         sync: false

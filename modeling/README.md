@@ -117,5 +117,6 @@ Use the [evaluation guide](evaluation/README.md) for expanding-window comparison
 calibration, date-level performance and confidently wrong predictions. It writes
 separate analysis directories and keeps the original baseline runs intact.
 
-For frozen earlier-to-later season backtests and publishing results, see the
-[dashboard guide](../docs/dashboard/README.md#cross-season-evaluation).
+For exporting fitted models to the today-games website, see the
+[local prediction guide](../docs/dashboard/README.md). Offline training and
+evaluation remain here; no retraining occurs in the API.

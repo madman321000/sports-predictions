@@ -69,6 +69,10 @@ type snapshot struct {
 
 // Capture observation time while holding the gate, before another request starts.
 func (c *Client) getSnapshot(ctx context.Context, path string) (*snapshot, error) {
+	return c.getSnapshotWithLimit(ctx, path, maxBody)
+}
+
+func (c *Client) getSnapshotWithLimit(ctx context.Context, path string, bodyLimit int64) (*snapshot, error) {
 	if err := c.acquire(ctx); err != nil {
 		return nil, err
 	}
@@ -91,7 +95,7 @@ func (c *Client) getSnapshot(ctx context.Context, path string) (*snapshot, error
 		if err != nil {
 			return nil, fmt.Errorf("fetch ESPN response: %w", err)
 		}
-		body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxBody+1))
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, bodyLimit+1))
 		closeErr := resp.Body.Close()
 		// Pace from completion, not from request start; slow requests cannot overlap.
 		c.next = time.Now().Add(c.interval)
@@ -108,8 +112,8 @@ func (c *Client) getSnapshot(ctx context.Context, path string) (*snapshot, error
 		if closeErr != nil {
 			return nil, fmt.Errorf("close ESPN response: %w", closeErr)
 		}
-		if len(body) > maxBody {
-			return nil, fmt.Errorf("ESPN response exceeds %d bytes", maxBody)
+		if int64(len(body)) > bodyLimit {
+			return nil, fmt.Errorf("ESPN response exceeds %d bytes", bodyLimit)
 		}
 		return &snapshot{body: body, observedAt: time.Now().UTC()}, nil
 	}
