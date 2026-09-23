@@ -43,7 +43,7 @@ func NewHandler(service *Service, origin string) http.Handler {
 		defer cancel()
 		result, err := service.Today(ctx, league, location)
 		if err != nil {
-			http.Error(w, "Game schedules are temporarily unavailable. Please retry in a few minutes.", http.StatusServiceUnavailable)
+			http.Error(w, "Game schedules unavailable: "+providerFailure(err)+". Check the API terminal for details.", http.StatusServiceUnavailable)
 			return
 		}
 		write(w, result)

@@ -8,12 +8,14 @@ import (
 	"math"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/madman321000/sports-predictions/internal/game"
+	"github.com/madman321000/sports-predictions/internal/provider/espn"
 	"github.com/madman321000/sports-predictions/internal/team"
 )
 
@@ -241,5 +243,24 @@ func TestCanceledVisitorDoesNotPoisonSharedCache(t *testing.T) {
 	}
 	if _, err := s.Today(ctx, "NFL", time.UTC); !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled visitor should not start another fetch")
+	}
+}
+
+func TestProviderErrorsAreSafeAndActionable(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		want string
+	}{
+		{&espn.HTTPError{StatusCode: 400, RetryAfter: "private-value"}, "ESPN HTTP 400"},
+		{context.DeadlineExceeded, "provider request timed out"},
+		{errors.New("private-value"), "provider response could not be read or validated"},
+	} {
+		p := &fakeProvider{err: tc.err}
+		service := NewService(context.Background(), p, nil)
+		response := httptest.NewRecorder()
+		NewHandler(service, "").ServeHTTP(response, httptest.NewRequest("GET", "/api/today?league=NBA", nil))
+		if response.Code != 503 || !strings.Contains(response.Body.String(), tc.want) || strings.Contains(response.Body.String(), "private-value") {
+			t.Fatal(response.Code, response.Body.String())
+		}
 	}
 }

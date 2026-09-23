@@ -83,7 +83,11 @@ different browser origin. The frontend's `VITE_API_BASE_URL` remains
 Select NBA or NFL. The UI checks every minute; server-side schedule caches are
 shared across users/timezones and refreshed at most once per five minutes.
 Refresh does not bypass the request limiter. Initial current-season history
-loads in bounded date chunks in the background and can take a few minutes.
+loads using paced single-date requests in the background. ESPN rejects multi-date
+scoreboard selectors for some leagues. A full season can take tens of minutes
+(about 25 minutes for 300 dates at the default interval, plus network time). Keep
+the API running; the initial backfill has a 60-minute timeout. Larger configured
+request intervals may exceed that timeout. Schedules stay available during warmup.
 Only a fully successful backfill enables new predictions.
 
 ## Prediction rules and limitations
@@ -127,3 +131,7 @@ Only a fully successful backfill enables new predictions.
 Only NBA/NFL are accepted. Arbitrary date ranges cannot be requested by visitors.
 The previous `/api/runs` and `/api/stats` routes are not mounted by `cmd/api`.
 There are no training, model upload or credential endpoints.
+
+If schedules are unavailable, the API now reports the ESPN HTTP status or a safe
+network/response error category. Check the API terminal; this is distinct from a
+browser connection or origin error.
