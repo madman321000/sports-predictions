@@ -2,12 +2,16 @@ package forecast
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log"
+	"net"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/madman321000/sports-predictions/internal/game"
+	"github.com/madman321000/sports-predictions/internal/provider/espn"
 	"github.com/madman321000/sports-predictions/internal/team"
 )
 
@@ -52,7 +56,7 @@ type leagueState struct {
 	games                 []game.Game
 	scheduleAt, timeTeams time.Time
 	names                 map[string]string
-	scheduleError         bool
+	scheduleError         error
 	history               []game.Game
 	season                int
 	historyAt, retryAt    time.Time
@@ -92,13 +96,16 @@ func (s *Service) Today(ctx context.Context, league string, zone *time.Location)
 	if state.scheduleAt.IsZero() || now.Sub(state.scheduleAt) >= 5*time.Minute {
 		state.scheduleAt = now
 		games, err := s.provider.FetchGameRange(providerCtx, league, utcDate(now).AddDate(0, 0, -1), utcDate(now).AddDate(0, 0, 2))
-		state.scheduleError = err != nil
+		state.scheduleError = err
+		if err != nil {
+			log.Printf("forecast %s schedule: %s", league, providerFailure(err))
+		}
 		if err == nil {
 			state.games = games
 		}
 	}
-	if state.scheduleError {
-		return Today{}, fmt.Errorf("schedule unavailable")
+	if state.scheduleError != nil {
+		return Today{}, fmt.Errorf("schedule unavailable: %w", state.scheduleError)
 	}
 	if len(state.names) == 0 || now.Sub(state.timeTeams) >= 24*time.Hour {
 		// Failed team metadata is retried on the same conservative schedule.
@@ -209,7 +216,7 @@ func (s *Service) Today(ctx context.Context, league string, zone *time.Location)
 }
 
 func (s *Service) refresh(league string, season int, previous []game.Game, previousAt time.Time) {
-	ctx, cancel := context.WithTimeout(s.ctx, 4*time.Minute)
+	ctx, cancel := context.WithTimeout(s.ctx, 60*time.Minute)
 	defer cancel()
 	now := s.now().UTC()
 	year := season
@@ -248,11 +255,33 @@ func (s *Service) refresh(league string, season int, previous []game.Game, previ
 	defer state.mu.Unlock()
 	state.loading = false
 	state.historyError = fetchErr != nil
+	if fetchErr != nil {
+		log.Printf("forecast %s history: %s", league, providerFailure(fetchErr))
+	}
 	if fetchErr == nil && state.season == season {
 		state.history = make([]game.Game, 0, len(history))
 		for _, g := range history {
 			state.history = append(state.history, g)
 		}
-		state.historyAt = now
+		state.historyAt = s.now().UTC()
 	}
+}
+
+// Only classified diagnostics leave the provider boundary; raw errors can contain URLs.
+func providerFailure(err error) string {
+	var status *espn.HTTPError
+	if errors.As(err, &status) {
+		return fmt.Sprintf("ESPN HTTP %d", status.StatusCode)
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "provider request timed out"
+	}
+	if errors.Is(err, context.Canceled) {
+		return "provider request canceled"
+	}
+	var network net.Error
+	if errors.As(err, &network) {
+		return "provider network request failed"
+	}
+	return "provider response could not be read or validated"
 }

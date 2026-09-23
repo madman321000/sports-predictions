@@ -102,6 +102,7 @@ test("failure, retry and missing model states", async ({ page }) => {
   );
   await page.goto("/");
   await expect(page.getByRole("alert")).toContainText("Schedules unavailable");
+  await expect(page.getByRole("alert")).not.toContainText("configured origin");
   failed = false;
   await page.getByRole("button", { name: "Refresh games" }).click();
   await expect(

@@ -76,8 +76,9 @@ function App() {
         </div>
         {error && (
           <div role="alert" className="error">
-            {error} Check that your API is running and the browser address
-            matches its configured origin.
+            {error === "Failed to fetch"
+              ? "Cannot reach the API. Check that it is running and the browser address matches its configured origin."
+              : error}
           </div>
         )}
         {!current && !error && <p role="status">Loading today’s schedule…</p>}
@@ -104,7 +105,7 @@ function App() {
             ) && (
               <p role="status" className="panel">
                 {current.history_status === "warming"
-                  ? "Preparing this season’s team history. The first load can take a few minutes."
+                  ? "Preparing this season’s team history. The first load can take tens of minutes; keep the API running."
                   : "Team history is temporarily unavailable or out of date. New predictions are paused."}{" "}
                 ESPN requests are cached and paced.
               </p>

@@ -23,34 +23,33 @@ func (c *Client) FetchGames(ctx context.Context, league string, date time.Time) 
 	return decodeGamesWithSkips(response.body, league, response.observedAt, c.onSkippedEvent)
 }
 
-// FetchGameRange fetches at most 31 calendar dates, keeping a regular-season
-// scoreboard response comfortably below the 1000-event request limit.
+// FetchGameRange reads at most 31 calendar dates through the shared request gate.
+// ESPN's scoreboard rejects multi-date selectors for some leagues; use the same
+// single-date endpoint as ingestion and discard partial results on any failure.
 func (c *Client) FetchGameRange(ctx context.Context, league string, from, to time.Time) ([]game.Game, error) {
 	if to.Before(from) || to.Sub(from) > 30*24*time.Hour {
 		return nil, fmt.Errorf("scoreboard range must span 1–31 dates")
 	}
-	path, err := leaguePath(league)
-	if err != nil {
+	if _, err := leaguePath(league); err != nil {
 		return nil, err
 	}
-	response, err := c.getSnapshotWithLimit(ctx, path+"/scoreboard?dates="+from.Format("20060102")+"-"+to.Format("20060102")+"&limit=1000", 16<<20)
-	if err != nil {
-		return nil, err
+	result := []game.Game{}
+	positions := map[string]int{}
+	for date := from; !date.After(to); date = date.AddDate(0, 0, 1) {
+		games, err := c.FetchGames(ctx, league, date)
+		if err != nil {
+			return nil, err
+		}
+		for _, g := range games {
+			if i, ok := positions[g.ExternalID]; ok {
+				result[i] = g
+			} else {
+				positions[g.ExternalID] = len(result)
+				result = append(result, g)
+			}
+		}
 	}
-	var payload struct {
-		Events []json.RawMessage `json:"events"`
-	}
-	if err := json.Unmarshal(response.body, &payload); err != nil {
-		return nil, err
-	}
-	if len(payload.Events) >= 1000 {
-		return nil, fmt.Errorf("scoreboard range may be truncated")
-	}
-	games, err := decodeGamesWithSkips(response.body, league, response.observedAt, c.onSkippedEvent)
-	if len(games) >= 1000 {
-		return nil, fmt.Errorf("scoreboard range may be truncated")
-	}
-	return games, err
+	return result, nil
 }
 
 type scoreboard struct {
@@ -115,6 +114,9 @@ func decodeGamesWithSkips(body []byte, league string, observedAt time.Time, onSk
 	var events []event
 	if err := json.Unmarshal(response.Events, &events); err != nil {
 		return nil, fmt.Errorf("decode events: %w", err)
+	}
+	if len(events) >= 1000 {
+		return nil, fmt.Errorf("scoreboard date may be truncated")
 	}
 	result := make([]game.Game, 0, len(events))
 	seen := make(map[string]bool)
